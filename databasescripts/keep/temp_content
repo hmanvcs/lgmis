@@ -1,0 +1,109 @@
+-- MySQL Administrator dump 1.4
+--
+-- ------------------------------------------------------
+-- Server version	5.5.8-log
+
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8 */;
+
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+
+
+--
+-- Create schema agmis
+--
+
+CREATE DATABASE IF NOT EXISTS agmis;
+USE agmis;
+
+--
+-- Definition of table `content`
+--
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS `content`;
+CREATE TABLE `content` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `pagename` varchar(50) NOT NULL,
+  `pagetitle` varchar(25) NOT NULL,
+  `summary` varchar(1000) DEFAULT NULL,
+  `leftcolumnone` blob,
+  `leftcolumntwo` blob,
+  `leftcolumnthree` blob,
+  `rightcolumnone` blob,
+  `rightcolumntwo` blob,
+  `rightcolumnthree` blob,
+  `locationid` int(11) unsigned DEFAULT NULL,
+  `ispublished` tinyint(4) unsigned DEFAULT NULL,
+  `order` tinyint(4) unsigned DEFAULT NULL,
+  `datecreated` datetime NOT NULL,
+  `createdby` int(11) unsigned NOT NULL,
+  `lastupdatedate` datetime DEFAULT NULL,
+  `lastupdatedby` int(11) unsigned DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fk_locationdetail_createdby` (`createdby`),
+  KEY `fk_locationdetail_lastupdatedby` (`lastupdatedby`),
+  KEY `fk_locationdetail_locationid` (`locationid`) USING BTREE,
+  CONSTRAINT `fk_content_createdby` FOREIGN KEY (`createdby`) REFERENCES `useraccount` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_content_lastupdatedby` FOREIGN KEY (`lastupdatedby`) REFERENCES `useraccount` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_content_locationid` FOREIGN KEY (`locationid`) REFERENCES `location` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8;
+
+--
+-- Dumping data for table `content`
+--
+
+/*!40000 ALTER TABLE `content` DISABLE KEYS */;
+INSERT INTO `content` (`id`,`pagename`,`pagetitle`,`summary`,`leftcolumnone`,`leftcolumntwo`,`leftcolumnthree`,`rightcolumnone`,`rightcolumntwo`,`rightcolumnthree`,`locationid`,`ispublished`,`order`,`datecreated`,`createdby`,`lastupdatedate`,`lastupdatedby`) VALUES 
+ (1,'Home','Welcome To LGMIS','<h3>Back Ground Information.</h3>\r\nThe Government of Uganda, under the auspices of the United Nations Capital Development Fund (UNCDF) and United Nations Development Programme (UNDP) embarked on the implementation of the Third District Development Programme (DDP-III), of which the main focus is to stimulate Local Economic Development <b>(LED)</b>. <br /><br />\r\n<h3>The Project.</h3>\r\nAs part of the improvement of systems and methodologies in the Local Governments for LED to be effective, UNCDF/UNDP in partnership with the Ministry of Local Government to address',0x746865206761707320616E6420636F6E73747261696E747320696E2074686520736F757263696E672C20636F6C6C656374696F6E2C20616E616C797A696E672C2073746F72696E6720616E6420696E74657270726574696E67206F66206D61726B657420696E666F726D6174696F6E20696E20382070696C6F742064697374726963747320616E6420322070696C6F74206D756E69636970616C697469657320756E64657220746865204444502050726F6772616D6D65206E616D656C792042757369612C204B6179756E67612C204973696E6769726F2C204B697467756D2C20417275612C20416D7572752C204162696D2C204E776F7961206469737472696374732C2041727561206D756E69636970616C69747920616E64204275736961204D756E69636970616C69747920726573706563746976656C792E3C6272202F3E3C6272202F3E0D0A546869732077656273697465206973206120726573756C74206F6620746869732070726F6A656374207468617420696E766F6C76656420446576656C6F706D656E74206F66206120736563746F72206261736564207265706F7274696E672074656D706C6174652073797374656D20746861742077696C6C20696E666F726D2074686520646973747269637473206F6E20706572666F726D616E6365206F6620736563746F727320616E6420696E64696361746F7273206F6620627573696E65737320616E642065636F6E6F6D69632067726F7774682077697468696E2064697374726963742F6D756E69636970616C6974792E3C6272202F3E3C6272202F3E0D0A5468726F7567682074686973207765627369746520796F75206172652061626C6520746F207669657720616E64206361707475726520746865206D6F73742063757272656E74206D61726B657420696E666F726D6174696F6E2066726F6D2074686573652064697374726963747320616E64206D756E69636970616C69746965732E3C6272202F3E3C6272202F3E,NULL,NULL,NULL,NULL,NULL,NULL,1,1,'2012-09-11 10:04:06',1,'2012-09-13 13:22:00',250);
+/*!40000 ALTER TABLE `content` ENABLE KEYS */;
+
+
+--
+-- Definition of table `contentimage`
+--
+
+DROP TABLE IF EXISTS `contentimage`;
+CREATE TABLE `contentimage` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
+  `pageid` int(11) unsigned NOT NULL,
+  `filename` varchar(255) NOT NULL,
+  `filepath` varchar(500) NOT NULL,
+  `captiontitle` varchar(50) DEFAULT NULL,
+  `captiondetail` varchar(500) DEFAULT NULL,
+  `hascaption` tinyint(4) unsigned DEFAULT NULL,
+  `ispublished` tinyint(4) unsigned DEFAULT NULL,
+  `order` tinyint(4) unsigned DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fk_contentimage_pageid` (`pageid`),
+  CONSTRAINT `fk_contentimage_pageid` FOREIGN KEY (`pageid`) REFERENCES `content` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8;
+
+--
+-- Dumping data for table `contentimage`
+--
+
+/*!40000 ALTER TABLE `contentimage` DISABLE KEYS */;
+INSERT INTO `contentimage` (`id`,`pageid`,`filename`,`filepath`,`captiontitle`,`captiondetail`,`hascaption`,`ispublished`,`order`) VALUES 
+ (1,1,'image001.jpg','uploads/lgmis/slideshow','Featured 1','The equator. One of uganda\'s tourist attraction sites',1,1,1),
+ (2,1,'image002.jpg','uploads/lgmis/slideshow','Featured 2','...',1,1,2),
+ (3,1,'image1.jpg','uploads/lgmis/slideshow','Featured One','updated title',1,1,3),
+ (4,1,'image2.jpg','uploads/lgmis/slideshow','Featured 4','...',1,1,4),
+ (5,1,'image8.jpg','uploads/lgmis/slideshow','Featured 5','...',1,1,5),
+ (6,1,'image3.jpg','uploads/lgmis/slideshow','Featured 6','...',1,1,6);
+/*!40000 ALTER TABLE `contentimage` ENABLE KEYS */;
+
+
+SET FOREIGN_KEY_CHECKS = 0;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

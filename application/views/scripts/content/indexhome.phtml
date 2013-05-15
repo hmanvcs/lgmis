@@ -1,0 +1,189 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	$content = new Content();
+	$content->populate(1);
+	
+	$posturl = $this->baseUrl("content/edit");
+	
+	#in case of errors in session, populate the fields from session
+	if(!isEmptyString($session->getVar(ERROR_MESSAGE))){ 
+		$content->processPost($session->getVar(FORM_VALUES));	
+	}
+	
+	// debugMessage($content->toArray());
+	// default title is to enable adding any payee
+	$title = "Update Home Page Content"; 
+	$button_title = "Save Changes";
+	
+	$this->headTitle($title);  
+?>
+<script>
+$(document).ready(function(){
+	$('textarea').attr('class','').addClass('expanding');
+	//$("#locationid_chzn").css({'width':'204px'});
+	
+	$("#indexform").validate({
+		//define the validation rules one field at a time
+		rules: {
+			pagetitle: "required"
+		},
+		//the messages for each of the fields being validated
+		messages: {
+			pagetitle: "Please enter page title"			
+		},
+		// custom error positions
+		errorPlacement: function(error, element) {
+			switch(element.attr("name")){					
+				case 'locationid':
+					error.appendTo("#locationid_error");
+					break;	
+				default:
+					error.insertAfter(element);
+					break;
+			}
+		}		
+	});
+	
+	
+});
+</script>
+<style>
+#indexform textarea {
+	width: 600px; 
+	min-height: 250px; 
+}
+.ui-widget-content {
+	min-height:350px;
+}
+.ui-tabs .ui-tabs-panel {
+	padding:10px;
+}
+.ui-tabs .ui-tabs-nav li a {
+	font-weight:normal;
+	font-size:12px;
+}
+table.formtable tr td, table.formtable tr td.label {
+	vertical-align:middle;
+}
+label.label {
+	color:#224B87;
+	font-size:12px;
+}
+.slidesimages img {
+	width: 525px;
+	height:335px;	
+}
+</style>
+<div class="pageinfo"><?php echo /*$this->translate("locationdetail_page_info")*/"The home page content and images"; ?></div>
+<?php if(isNotAnEmptyString($session->getVar(SUCCESS_MESSAGE))){ ?>
+<div class="successmessage"><?php echo $session->getVar(SUCCESS_MESSAGE); ?></div>
+<?php } ?>
+<form id="indexform" action="<?php echo $posturl; ?>" method="post" enctype="multipart/form-data">
+<?php if ($sessionhaserror) { ?>
+	<div class="error"><?php echo $session->getVar(ERROR_MESSAGE); ?></div><br />
+<?php } ?>
+<?php if(isNotAnEmptyString($session->getVar(SUCCESS_MESSAGE))){ ?>
+  <div class="successmessage"><?php echo $session->getVar(SUCCESS_MESSAGE); ?></div><br />
+<?php } ?>
+<table class="formtable">
+  <tr class="sectionheading">
+    <td><?php echo $title; ?></td>
+  </tr>
+  <tr>
+  	<td>
+    	<div id="tabs">   
+            <ul>
+               <li><a href="#text">Content</a></li>
+               <li><a href="#images">Slide Show</a></li>       
+            </ul>
+            <div id="text">
+            	<table class="formtable" style="width:100%;">
+                	<tr>
+                    	<td class="label"><label class="label">Page Title:</label></td>
+                    </tr>
+                    <tr>
+                    	<td><input type="text" style="width:300px;" name="pagetitle" id="pagetitle" value="<?php echo $content->getPageTitle(); ?>" /></td>
+                    </tr
+                    ><tr>
+                    	<td class="label"><label class="label">Summary:</label></td>
+                    </tr>
+                    <tr>
+                    	<td><textarea class="expanding" id="summary" name="summary"><?php echo $content->getSummary(); ?></textarea></td>
+                    </tr>
+                    <tr>
+                    	<td class="label"><label class="label">Details:</label></td>
+                    </tr>
+                    <tr>
+                    	<td><textarea class="expanding" id="leftcolumnone" name="leftcolumnone"><?php echo $content->getLeftColumnOne(); ?></textarea></td>
+                    </tr>
+                </table>
+            </div>
+            <div id="images">
+            	<?php 
+					$images = $content->getImageList();
+					$allimages = $content->getImages();
+					// debugMessage($images->toArray());
+				?>
+            	<div class="slidesimages">
+                	<?php
+						$x = 1; 
+						foreach($images as $image){
+							$key = array_search_key_by_id($allimages, $image->getID());
+					?>
+                        <table class="formtable" style="width:100%; margin-bottom:15px;">
+                            <tr>
+                                <td class="label"><label class="label">Caption Title:</label>&nbsp; 
+                                <input type="text" style="width:200px;" name="imagesdata[<?php echo $key; ?>][captiontitle]" id="captiontitle_<?php echo $key; ?>" value="<?php echo $image->getCaptionTitle(); ?>" /></td>
+                            </tr>
+                            <tr>
+                                <td class="label"><label class="label">Caption Description:</label>&nbsp; 
+                                <input type="text" style="width:450px;" name="imagesdata[<?php echo $key; ?>][captiondetail]" id="captiondetail_<?php echo $key; ?>" value="<?php echo $image->getCaptionDetail(); ?>" /></td>
+                            </tr>
+                            <tr>
+                                <td class="label"><label class="label">Order:</label>&nbsp; 
+                                <input type="text" name="imagesdata[<?php echo $key; ?>][order]" id="order_<?php echo $key; ?>" style="width:25px; text-align:center;" value="<?php echo $image->getOrder(); ?>" />
+                                <label class="label" style="margin-left:25px;">Published:</label> &nbsp;
+                                <input type="checkbox" id="ispublished_<?php echo $key; ?>imagesdata[<?php echo $key; ?>][order]" name="ispublished_<?php echo $key; ?>" class="<?php echo $image->getIsPublished(); ?>" value="1" />
+                                <label class="label" style="margin-left:25px;">Show Caption:</label> &nbsp;
+                                <input type="checkbox" id="hascaption_<?php echo $key; ?>imagesdata[<?php echo $key; ?>][order]" name="hascaption_<?php echo $key; ?>" class="<?php echo $image->getHasCaption(); ?>" value="1" />
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="label"><label class="label">Image:</label>&nbsp;&nbsp;<br />
+                                <img src="<?php echo $this->baseUrl($image->getFilePath().'/'.$image->getFileName()); ?>" alt="" />
+                                <input type="hidden" name="imagesdata[<?php echo $key; ?>][id]" id="id_<?php echo $key; ?>" value="<?php echo $image->getID(); ?>" />
+                                <input type="hidden" name="imagesdata[<?php echo $key; ?>][key]" id="key_<?php echo $key; ?>" value="<?php echo $key; ?>" />
+                                <input type="hidden" name="imagesdata[<?php echo $key; ?>][filename]" id="filename_<?php echo $key; ?>" value="<?php echo $image->getFileName(); ?>" />
+                                <input type="hidden" name="imagesdata[<?php echo $key; ?>][filepath]" id="filepath_<?php echo $key; ?>" value="<?php echo $image->getFilePath(); ?>" />
+                                </td>
+                            </tr>
+                        </table>
+                    <?php $key++; } ?>
+				</div>
+            </div>
+        </div>
+    </td>
+  </tr>
+</table>
+<table class="formtable formactions">
+    <tfoot>
+      <tr>
+        <td align="center"><a href="<?php echo $this->baseUrl("content/viewhome"); ?>" title="Return to View">Cancel</a>&nbsp;&nbsp;
+          <button type="submit" class="positiveaction" id="submit" name="submit" title="<?php echo $button_title; ?>"><img src="<?php echo $this->baseUrl("images/tick.png"); ?>" /><?php echo $button_title; ?></button>
+          <input type="hidden" name="entityname" value="Content" />
+          <input type="hidden" id="id" name="id" value="<?php echo encode($content->getID()); ?>" />
+          <input type="hidden" id="<?php echo SUCCESS_MESSAGE; ?>" name="<?php echo SUCCESS_MESSAGE; ?>" value="<?php echo $this->translate("global_success_message"); ?>" />
+          <input type="hidden" id="<?php echo URL_FAILURE; ?>" name="<?php echo URL_FAILURE; ?>" value="<?php echo encode($this->baseUrl("content/indexhome")); ?>" />
+          <input type="hidden" id="<?php echo URL_SUCCESS; ?>" name="<?php echo URL_SUCCESS; ?>" value="<?php echo encode($this->baseUrl("content/viewhome")); ?>" />
+          <input type="hidden" id="counter" name="counter" value="<?php echo $x; ?>" />
+          </td>
+      </tr>
+    </tfoot>
+</table>    
+</form>
+<?php
+	$session->setVar(SUCCESS_MESSAGE, "");
+	$clearsessionformvalues = true; 
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

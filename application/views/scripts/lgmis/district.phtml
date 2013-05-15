@@ -1,0 +1,182 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	$location = new District();  
+	$location->populate($request->id);
+	// debugMessage($location->toArray()); exit();
+	$locdetail = $location->getLocationDetail();
+	
+	// default title is to enable adding any payee
+	$title = $location->getName(); 
+	$place = $title;
+	$this->headTitle($title);
+	
+	
+?>
+<style>
+#rightcolumn {
+	display:none;
+}
+#contentwrapper {
+	width: 950px;
+	border:solid 1px #CCCCCC;
+	border-top:none;
+	background-color:#FFFFFF;
+	background-image:none;
+	margin-top:-2px;
+}
+#contentleft {
+	width:56%;
+}
+#contentright {
+	width:42%;
+}
+
+table.list tr td, table.formtable tr td, table.formtable tr td.label {
+	vertical-align:middle;
+}
+table.formtable td.label {
+	background:none;
+}
+</style>
+<div id="lgmiswrapper">
+<?php require_once APPLICATION_PATH.'/views/scripts/lgmis/menu.phtml'; ?>
+	<div id="contentleft" class="globalfont">
+    	<h1 class="pagetitle"><?php echo $title; ?></h1>
+       	<div class="widgetsection height100">
+            <h3>Summary</h3>
+            <label><?php echo isEmptyString($location->getLocationDetail()->getSummary()) ? 'No information currently available for '.$place : nl2br($location->getLocationDetail()->getSummary()); ?></label>
+        </div> 
+        <div class="widgetsection height300">
+            <h3>Statistics</h3>
+            <?php 
+				$stats = $location->getListofStatistics();
+				// debugMessage($stats);
+            ?>    	 
+            <?php if (count($stats) == 0) { ?>
+                <label class="informationmessage">No information currently available <?php echo $place; ?></label>
+            <?php } else { ?>
+            	<table class="formtable" style="width:100%; margin:0;">
+					<?php 
+						$count = 0; 
+						foreach ($stats as $key => $value) {
+
+                            if(($count % 2) == 0) {
+                                echo "<tr>";
+                            } 
+							echo '<td class="label" style="white-space:normal; width:35%;">'.$key.'</td>' ; 
+							echo '<td align="center" style="white-space:normal; width:15%;">'.formatNumber($value,0).'</td>'; 
+                    ?>
+                        
+                    <?php 
+							if (($count % 2) == 1) {
+								echo "</tr>"; 
+							} // end loop to close the row 
+							$count++; 
+						} // close loop through available statistics
+						// close any remaing tds
+						if ($count % 2 == 1) {
+							// the last TR was not closed
+								echo "<td></td><td></td>";
+							echo "</tr>";
+						} // end loop for closing the last TR 
+					?>
+                </table>
+            <?php } ?>
+        </div>
+        <div class="widgetsection height300">
+            <h3>Area Map</h3>
+            <?php 
+				$hasmap = false;
+				if($locdetail->hasIDImage() || $locdetail->hasImage()){
+					$hasmap = true;
+				}
+			?>
+            <div style="margin:0 auto; text-align:center;">
+            	<?php if($hasmap){ ?>
+            		<img style="width:98%;" src="<?php echo $locdetail->getImagePath(); ?>" alt="Map of <?php echo $place; ?>" />
+                <?php } else { ?>
+                	<label>No map currently available</label>
+                <?php } ?>
+            </div>
+        </div> 
+    </div>
+    <div id="contentright" class="globalfont">
+    	<div class="widgetsection height300">
+            <h3>Current Market Prices</h3>
+            <table class="list" style="width:93%; margin-bottom:0;">
+                <thead>
+                    <tr>
+                        <td class="commodity" style="width:50%;">Commodity</td>
+                        <td class="wholesale" style="width:25%; text-align:right;">Wholesale (Shs)</td>
+                        <td class="retail" style="width:25%; text-align:right;">Retail (Shs)</td>
+                    </tr>
+                </thead>
+            </table>
+            <div class="scrollable">
+                <table class="list" style="width:98%; margin-bottom:5px;" id="market">                        
+                    <tbody>
+                        <?php 
+                            $presult = $location->getMarketCurrentPrices();
+                            if(count($presult) == 0){
+                        ?>
+                            <tr>
+                                <td colspan="3">No Prices currently available in <?php echo $location->getName(); ?></td>
+                            </tr>
+                        <?php } else { ?>
+							<?php 
+                                foreach($presult as $line){
+                            ?>	
+                            	<?php if($line['Retail Price'] > 0){ ?>						
+                                <tr>
+                                    <td class="commodity nowrapping" style="width:50%;"><?php echo $line['name']; ?></td>
+                                    <td class="wholesale nowrapping" style="width:25%; text-align:right; padding-right:25px;"><?php echo ($line['Wholesale Price'] == 0 || isEmptyString($line['Wholesale Price'])) ? '--' : formatNumber($line['Wholesale Price']); ?></td>
+                                    <td class="retail nowrapping" style="width:25%; text-align:right; padding-right:25px;"><?php echo  ($line['Retail Price'] == 0 || isEmptyString($line['Retail Price'])) ? '--' : formatNumber($line['Retail Price']); ?></td>
+                                </tr>
+                                <?php } ?>
+                            <?php } ?>
+                        <?php } ?>                           
+                    </tbody>                   
+                </table>
+            </div>
+        </div> 
+        <div class="widgetsection height1">
+            <h3>Current Fuel Prices</h3>
+            <table class="list" id="fuel" style="width:98%; margin-bottom:5px;">                        
+                <tbody> 
+                	<thead>
+                        <tr>
+                            <td class="label" style="width:50%;">Commodity</td>
+                            <td class="label" style="width:45%;">Price (Shs)</td>
+                        </tr>
+                    </thead>                          
+                    <tr>
+                        <td>Petro</td>
+                        <td><?php 
+							$price = formatNumber($location->getCurrentFuelPrices(95));
+							echo isEmptyString($price) ? '---': $price; ?>
+                            </td>
+                    </tr>
+                    <tr>
+                        <td>Diesel</td>
+                        <td><?php 
+							$price = formatNumber($location->getCurrentFuelPrices(97));
+							echo isEmptyString($price) ? '---': $price; ?></td>
+                    </tr> 
+                    <tr>
+                        <td>Kerosene</td>
+                        <td><?php 
+							$price = formatNumber($location->getCurrentFuelPrices(96));
+							echo isEmptyString($price) ? '---': $price; ?></td>
+                    </tr>                          
+                </tbody>                   
+            </table>
+            
+        </div>
+        
+    </div>
+</div>
+<?php
+	$clearsessionformvalues = true; 
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

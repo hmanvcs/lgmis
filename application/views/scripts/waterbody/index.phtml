@@ -1,0 +1,80 @@
+<?php 
+
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	$waterbody = new WaterBody();
+	
+	//default title is to add new landing site
+	$title = /*$this->translate("waterbody_pagetitle_new")*/"New Water Body";
+	$posturl = $this->baseUrl("waterbody/create");
+	$button_title = /*$this->translate("waterbody_button_new")*/"Save";
+	
+	if (!isEmptyString($request->id)) {
+		$waterbody->populate(decode($request->id));
+		$title = /*$this->translate("landingsite_pagetitle_edit")*/"Update Water Body"; 
+		$button_title = /*$this->translate("landingsite_button_edit")*/"Save Changes";
+		$posturl = $this->baseUrl("waterbody/edit"); 
+	}
+	
+	#in case of errors in session, populate fields in session
+	if(!isEmptyString($session->getVar(ERROR_MESSAGE))){
+		$waterbody->processPost($session->getVar(FORM_VALUES));
+	}
+	$this->headTitle($title);
+?>
+<script>
+	$(document).ready(function(){
+		$("#indexform").validate({
+			//define the validation rules one field at a time
+			rules: {
+				name: "required"
+			},
+			//the messages for each of the fields being validated
+			messages: {
+				name: "<?php echo /*$this->translate("waterbody_name_error")*/"Please enter name of Water Bosy"; ?>"
+			}
+		});
+	});
+</script>
+<div class="pageinfo"><?php echo /*$this->translate("waterbody_page_info")*/"Details of a water body"; ?></div>
+<form id="indexform" action="<?php echo $posturl; ?>" method="post">
+	<table class="formtable">
+		<tr class="sectionheading">
+	      <td colspan="2"><?php echo $title; ?></td>
+	    </tr>
+	    <?php if ($sessionhaserror) { ?>
+	    <tr>
+	      <td class="label">&nbsp;</td>
+	      <td class="error"><?php echo $session->getVar(ERROR_MESSAGE); ?></td>
+	    </tr>
+	    <?php } ?>
+	    <tr>
+	      <td class="label">&nbsp;</td>
+	      <td class="pagedescription"><?php echo $this->translate("required_field_info"); ?></td>
+	    </tr>
+	    <tr>
+	      <td class="label"><?php echo $this->translate("landingsite_name_label"); ?>: <?php echo $this->translate("required_field_marker"); ?></td>
+	      <td><input type="text" name="name" id="name" value="<?php echo $waterbody->getName(); ?>" /></td>
+   		</tr>
+   		<tr>
+	      <td class="label"><?php echo $this->translate("landingsite_description_label"); ?>:</td>
+	      <td><textarea class="expanding" id="description" name="description"><?php echo $waterbody->getDescription(); ?></textarea></td>
+   		</tr>
+	 </table>
+	  <table class="formtable">
+		<tfoot>
+	      <tr>
+	        <td><a href="<?php echo $this->baseUrl("waterbody/list"); ?>" title="Cancel">Cancel</a>&nbsp;&nbsp;
+	          <button type="submit" class="positiveaction" id="submit" name="submit" title="<?php echo $button_title; ?>"><img src="<?php echo $this->baseUrl("images/tick.png"); ?>" /><?php echo $button_title; ?></button>
+	          <input type="hidden" name="entityname" value="WaterBody" />
+	          <input type="hidden" id="id" name="id" value="<?php echo encode($waterbody->getID()); ?>" />
+	          </td>
+	      </tr>
+    	</tfoot>
+	  </table>
+	</form>
+<?php 
+
+	require_once APPLICATION_PATH.'/includes/footer.php';
+
+?>

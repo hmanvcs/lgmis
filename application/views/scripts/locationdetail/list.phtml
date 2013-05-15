@@ -1,0 +1,127 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	# Page title
+	$title = 'Manage LGMIS Districts';
+	$this->headTitle($title);
+	
+	# Create an instance of the class to handle the pagination
+	$paginate = new Pagination();	
+	$paginate->setView($this);
+	# set the search columns to be used on this list
+	$paginate->setSearchColumns(array("d.name", "d.description", "r.name"));
+	$paginate->setDefaultSortBy("d.name");	
+	$paginate->setFilterColumns(array("d.regionid"));
+
+	$paginate->processPost($request->getParams());
+	$all_results_query = "SELECT l.id, d.name as `Name`, r.name as `Region`, d.description as `Description` FROM locationdetail l INNER JOIN location d on (l.locationid = d.id) INNER JOIN location r ON d.regionid = r.id ".$paginate->getSearchAndFilterSQL()." ".$paginate->getSortSQL();
+	
+	// debugMessage($all_results_query);
+	$paginate->setItemCountFromSQLQuery($all_results_query);
+	
+	$current_results_query = $all_results_query." ".$paginate->getSQLLimit();
+	//echo $current_results_query;
+	$session->setVar(ALL_RESULTS_QUERY, $all_results_query);
+	$session->setVar(CURRENT_RESULTS_QUERY, $current_results_query);
+	# the query string to be appended to the return to list URL
+	$session->setVar('list_query_string'.$request->getControllerName(), $request->getParams());
+	
+	$conn = Doctrine_Manager::connection(); 
+	$result = $conn->fetchAll($current_results_query);
+	$has_no_data = (count($result) == 0) ? true : false; 
+	
+	# This variable stores the number of redundant columns returned in the query so that when we are printing
+	# we are able to know how many columns to ignore. This variable is sent in the print URL
+	$number_of_redundant_columns = 1;
+	
+	# the columns which contain numbers in the invoice query
+	# Please note that the column count begins at 0
+	$export_number_column_list = "";
+?>
+<script>
+$(document).ready(function(){
+
+});
+</script>
+<style>
+
+</style>
+<form action="<?php echo $this->baseUrl("district/lgmissearch"); ?>" method="get" id="usersform">
+<table class="filtercontainer">
+    <tr>
+      <td><table class="filtersection">
+          <tr>
+            <td><?php
+					$regionlist = new LookupType(); 
+					$regionlist->setName("ALL_REGIONS");
+					$regiondropdown = new Zend_Form_Element_Select('d'.HTML_TABLE_COLUMN_SEPARATOR.'regionid',
+										array(
+											'multiOptions' => array_merge_maintain_keys(array('' => 'All Regions'), $regionlist->getOptionValuesFromQuery()),								'view' => new Zend_View(),
+											'decorators' => array('ViewHelper'),
+											'class' => array('filterselect', 'chzn-select')
+										)
+									);
+					$regiondropdown->setValue($request->getParam('d'.HTML_TABLE_COLUMN_SEPARATOR.'regionid')); 
+					echo $regiondropdown->render(); 
+				  ?>
+                <?php if(isLGMISAdmin()) { ?>  
+            	<a style="float:right;" href="<?php echo $this->baseUrl('locationdetail/index'); ?>" class="positiveaction" title="Setup New District">Setup New District</a>
+                <?php } ?>
+            </td>
+          </tr>
+        </table></td>
+      <td><table>
+          <tr>
+            <td><input class="filterselect" type="text" name="searchterm" id="searchterm" value="<?php echo $request->searchterm; ?>" title="Search for district" /></td>
+          </tr>
+          <tr>
+            <td><button type="submit" class="positiveaction" id="searchbutton" title="Click here to Search or Filter"><img src="<?php echo $this->baseUrl("images/zoom_in.png"); ?>" alt="Search"/>Search</button></td>
+          </tr>
+        </table></td>
+    </tr>
+</table>
+<?php if(isNotAnEmptyString($session->getVar(SUCCESS_MESSAGE))){ ?>
+	<div class="successmessage"><?php echo $session->getVar(SUCCESS_MESSAGE); ?></div>
+<?php } ?>
+<?php // show a message that there are no items to display
+	if ($has_no_data) {
+?>
+	<label class="error"><?php echo $this->translate("district_list_norecords"); ?></label>
+<?php } else { ?>
+    <div id="counter"><?php echo sprintf($this->translate("district_list_counter"), $paginate->getItemCounterText()); ?></div>
+    <div id="listcounter"><?php echo $this->listcountdropdown; ?></div>  
+    <div id="print"><a title="<?php echo $this->translate('global_print_as'); ?>" href="<?php echo $this->baseUrl('index/printerfriendly/'.EXPORT_NUMBER_COLUMN_LIST.'/'.$export_number_column_list.'/'.EXPORT_IGNORE_COLUMN_COUNT.'/'.$number_of_redundant_columns.'/'.PAGE_TITLE.'/'.$title); ?>" target="_blank"><?php echo $this->translate('global_print'); ?>&nbsp;<img src="<?php echo $this->baseUrl('images/printer.png'); ?>" alt="<?php echo $this->translate('global_print_as'); ?>" /></a></div>  
+    <?php if ($acl->checkPermission('District', ACTION_EXPORT)) { ?>
+    	<div id="export"><a title="<?php echo $this->translate('global_export_as_excel'); ?>" href="<?php echo $this->baseUrl('index/exceldownload/'.EXPORT_NUMBER_COLUMN_LIST.'/'.$export_number_column_list.'/'.EXPORT_IGNORE_COLUMN_COUNT.'/'.$number_of_redundant_columns); ?>" target="_blank"><?php echo $this->translate('global_export_as'); ?>&nbsp;<img src="<?php echo $this->baseUrl('images/excel.png'); ?>" alt="<?php echo $this->translate('global_export_as_excel'); ?>" /></a></div>
+	<?php } ?>
+    
+    <div id="listresults_div">
+    <h2><?php echo $title; ?></h2>
+    <table class="list">
+      <thead>
+        <tr>
+          <td width="40%"><?php echo $paginate->getSortLinkForColumn('d.name','Name'); ?></td>
+          <td width="30%"></td>
+          <td width="30%"></td>
+        </tr>
+      </thead>
+      <tbody>
+        <?php 				  		
+            foreach($result as $line){							
+        ?>
+        <tr>
+          <td><a href="<?php echo $this->baseUrl("locationdetail/view/id/".encode($line['id'])); ?>"><?php echo $line['Name']; ?></a></td>
+          <td></td>
+          <td></td>
+        </tr>
+        <?php } ?>
+      </tbody>
+    </table>
+    </div>
+    <div class="paginationlinks"><?php echo $paginate->getPaginationLinks(); ?></div>
+<?php } ?>    
+</form>
+<?php
+	$session->setVar(SUCCESS_MESSAGE, "");
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

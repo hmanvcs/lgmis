@@ -1,0 +1,199 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	$location = new District();
+	$location->populate($request->id);	
+	
+	$title = $location->getName()." Crop Production";
+	$place = $location->getName();
+	# Page title
+	$this->headTitle($title);
+	
+	# Create an instance of the class to handle the pagination
+	$paginate = new Pagination();
+	$paginate->setView($this);
+	$paginate->setItemCountPerPage(8); 
+	$paginate->processPost($request->getParams());
+	
+	$all_results_query = "SELECT c.id as id, c.commodityid as commodityid, l.name AS `Location`, co.name AS `Commodity`, co.description, c.seedsource AS `Source of Seeds`, c.cost AS `Cost`, cs.pests AS `Pests`, cs.diseases AS `Diseases`, cs.creditsource AS `Source of Credit`, c.yield AS `Yield Per Acre`, c.startdate as startdate, c.enddate as enddate, co.image as image, c.unitid, cu.name as `Unit`, c.prodtype as `Input Type`, c.yield AS `Yield`, c.yieldtype as `Yield Type`, c.quarter as `Quarter` FROM cropproduction AS c 
+	INNER JOIN location l ON (c.locationid = l.id) 
+	INNER JOIN commodity co ON (c.commodityid = co.id) 
+	LEFT JOIN commodityunit cu ON (c.unitid = cu.id) 
+	INNER JOIN (SELECT cp.commodityid, MAX(cp.enddate) AS enddate FROM cropproduction cp WHERE cp.locationid = '".$request->id."' GROUP BY cp.commodityid) AS d ON (d.`enddate` = c.enddate AND c.commodityid = d.commodityid)
+	LEFT JOIN cropsectorinformation cs ON (cs.commodityid = c.commodityid AND cs.quarter = c.quarter AND cs.locationid = '".$request->id."') 
+	WHERE c.locationid = '".$request->id."' AND c.cost > 0 GROUP BY c.commodityid ORDER BY co.name";
+	
+	$paginate->setItemCountFromSQLQuery($all_results_query);
+	
+	$current_results_query = $all_results_query." ".$paginate->getSQLLimit();
+	
+	// debugMessage($current_results_query);
+	
+	$conn = Doctrine_Manager::connection(); 
+	$attr_result = $conn->fetchAll($current_results_query);
+	$has_no_data = (count($attr_result) == 0) ? true : false; 
+	
+	# This variable stores the number of redundant columns returned in the query so that when we are printing
+	# we are able to know how many columns to ignore. This variable is sent in the print URL
+	$number_of_redundant_columns = 1;
+	
+	# the columns which contain numbers in the invoice query
+	# Please note that the column count begins at 0
+	$export_number_column_list = "";
+	
+?>
+<style>
+#rightcolumn {
+	display:none;
+}
+#contentwrapper {
+	width: 950px;
+	border:solid 1px #CCCCCC;
+	border-top:none;
+	background-color:#FFFFFF;
+	background-image:none;
+}
+#contentleft {
+	min-height:150px;
+	height:auto;
+}
+#contentright {
+	min-height:150px;
+	height:auto;
+}
+table.list tr:hover, table.formtable tbody tr:hover {
+	background:none;
+}
+table.list tbody tr.odd {
+	background: #FFFFFF;
+}
+table.list tr td :hover{
+	background: #F2FAFC;
+}
+
+</style>
+<div id="lgmiswrapper">
+<?php require_once APPLICATION_PATH.'/views/scripts/lgmis/menu.phtml'; ?>
+	<div id="contentleft" class="globalfont">
+    	<h1 class="pagetitle"><?php echo $title; ?></h1>
+       	<div class="widgetsection height100">
+            <h3><?php echo $this->translate('lgmis_sector_overview'); ?></h3>
+            <label><?php echo isEmptyString($location->getLocationDetail()->getCropProduction()) ? 'No information currently available for '.$place : nl2br($location->getLocationDetail()->getCropProduction()); ?></label>
+        </div> 
+    </div>
+    <!--<div id="contentright" class="globalfont">
+    	<div class="widgetsection height150">
+        	<h3>TBD</h3>
+        </div>
+   	</div>-->
+    <div class="widgetsection height200 globalfont" style="display:block; clear:both;">
+        <h3><?php echo $this->translate('lgmis_sector_information'); ?></h3>
+        <?php if ($has_no_data) { ?>
+            <label class="informationmessage">No information currently available for <?php echo $place; ?></label>
+        <?php } else { ?>
+        	<label class="subtitle">Production Statistics between <?php echo changeMySQLDateToPageFormat($attr_result[0]['startdate'])." and ".changeMySQLDateToPageFormat($attr_result[0]['enddate']); ?></label>
+            
+            <table class="list formtable" style="margin:0; width:100%;">
+			<?php 	
+                    $count = 0; 			  		
+                    foreach($attr_result as $line){	
+                        if ($count % 2 == 0) {
+                            echo "<tr>";
+                        }
+						$coststring = "--";
+						$comtype = "--";
+						$comunit = "--";
+						
+						if(!isEmptyString($line['Input Type'])){
+							switch($line['Input Type']){
+								case 23:
+									$comtype = " [Seeds]";
+									break;
+								default:
+									break;							
+							}
+						}
+						
+						if($line['Cost'] > 0){
+							if(isEmptyString($comunit) || isEmptyString($comtype)){
+								$coststring = formatNumber($line['Cost'],0);
+							} else {
+								$coststring = formatNumber($line['Cost'],0)." / ".$comunit." of ".$comtype;
+							}
+						}
+						
+						$yiedstring = "--";
+						$yieldtype = "--";
+						$comunit = "--";
+						if(!isEmptyString($line['Yield Type'])){
+							switch($line['Yield Type']){
+								case 26:
+									$yieldtype = "Acre";
+									break;
+								case 27:
+									$yieldtype = "Hectare";
+									break;
+								default:
+									break;							
+							}
+						}
+						if(!isEmptyString($line['Input Type'])){
+							$comunit = $line['Unit'];
+						}
+						if($line['Yield'] > 0){
+							$yiedstring = formatNumber($line['Yield'],0)." &nbsp;".$comunit." / ".$yieldtype;
+						}
+                ?>
+                <td class="nowrapping globalfont" style="width: 45%;">
+                	<div class="listtdwrapper" style="padding:10px;">
+                		<h3 style="margin:5px;"><?php echo $line['Commodity']; ?></h3>
+                        <table style="width:100%;">
+                        	<tr>
+                            	<td style="border:none; padding:0;">
+                                	<div class="pubimage">
+                                        <img src="<?php echo getCommodityImagePath($line['image'], $line['commodityid']); ?>" class="floatleft vcommodityimage" style="margin:0 auto; width:200px; max-height:200px;" />
+                                    </div>
+                                    <!--<b><?php //echo $this->translate("commodity_description_label"); ?>:</b>
+									<?php //echo nl2br($line['description']); ?><br>-->
+                                </td>
+                            </tr>
+                            <tr>
+                            	<td style="border:none; padding:0;">
+                                    <span class="listdetails"><b><?php echo "Cost of Inputs ".$comtype."(Ugx)"; ?>:</b>
+                                    <?php echo formatNumber($line['Cost'],0); ?></span>
+                                    <span class="listdetails"><b><?php echo $this->translate("cropproduction_yieldperacre_label"); ?>:</b>   
+                                    <?php echo $yiedstring; ?></span>
+                                    <span class="listdetails"><b><?php echo $this->translate("cropproduction_sourceofseeds_label"); ?>:</b>
+                                    <?php echo isEmptyString($line['Source of Seeds']) ? '--' : nl2br($line['Source of Seeds']); ?></span>
+                                    <span class="listdetails"><b><?php echo $this->translate("cropproduction_pests_label"); ?>:</b>
+                                    <?php echo isEmptyString($line['Pests']) ? '--' : nl2br($line['Pests']); ?></span>
+                                    <span class="listdetails"><b><?php echo $this->translate("cropproduction_diseases_label"); ?>:</b>
+                                    <?php echo isEmptyString($line['Diseases']) ? '--' : nl2br($line['Diseases']); ?></span>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    </td>
+                    <?php 
+						// do not close for the first row 	
+						if ($count % 2 == 1) {
+							echo "</tr>";
+						}		
+						// increment the counter
+						$count++; 
+                    } // end processing results 
+                    // if the last record is odd then add a blank row
+                    // and close the row 
+                    if ($count % 2 == 1) {
+                        echo "<td></td></tr>";
+                    }	
+                ?>  
+        </table>
+        <div class="paginationlinks"><?php echo $paginate->getPaginationLinks(); ?></div>
+        <?php } ?>
+    </div> 
+</div>
+<?php
+	$clearsessionformvalues = true; 
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

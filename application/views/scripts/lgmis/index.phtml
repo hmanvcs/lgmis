@@ -1,0 +1,145 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	$content = new Content();
+	$content->populate(1);
+	
+	$title = $content->getPageTitle(); //"Welcome To LGMIS"; 
+	$this->headTitle($title);
+?>
+<script>
+$(document).ready(function() {
+	
+	$('#slides').slides({
+		preload: true,
+		preloadImage: '<?php echo $this->baseUrl('images/slideloader.gif'); ?>',
+		play: 8000,
+		pause: 2500,
+		hoverPause: false,
+		fadeSpeed: 1000,
+		slideSpeed: 750,
+		animationStart: function(current){
+			$('.caption').animate({
+				bottom:-35
+			},100);
+			if (window.console && console.log) {
+				// example return of current slide number
+				console.log('animationStart on slide: ', current);
+			};
+		},
+		animationComplete: function(current){
+			$('.caption').animate({
+				bottom:0
+			},200);
+			if (window.console && console.log) {
+				// example return of current slide number
+				console.log('animationComplete on slide: ', current);
+			};
+		},
+		slidesLoaded: function() {
+			$('.caption').animate({
+				bottom:0
+			},200);
+		}
+	});
+});
+</script>
+<style>
+#rightcolumn {
+	display:none;
+}
+#contentwrapper {
+	width: 950px;
+	border:solid 1px #CCCCCC;
+	border-top:none;
+	background-color:#FFFFFF;
+	background-image:none;
+	margin: 0 0 5px;
+}
+
+#homeleft {
+	float:left;
+	width:36%;
+	min-height:375px;
+	margin-right:5px;
+}
+#homeright {
+	float:right;
+	width:65%;
+	min-height:375px;
+	margin:20px 0 0 -20px;
+}
+#homebottom {
+	width:100;	
+}
+#homebottom #bottom-left {
+	float:left; 
+	width:85%; 
+	font-family:"Lucida Grande","Lucida Sans Unicode",arial,sans-serif;
+}
+#homebottom #bottom-right {
+	float:right; 
+	width:30%;
+	margin-top:-25px;
+}
+
+</style>
+<div id="lgmiswrapper">
+	<?php require_once APPLICATION_PATH.'/views/scripts/lgmis/menu.phtml'; ?>
+	<div id="homeleft" class="globalfont">
+    	<h1 class="pagetitle"><?php echo $title; ?></h1>
+        <?php echo $content->getSummary(); ?>
+    </div>
+    <div id="homeright">
+    	<?php 
+			$images = $content->getImageList();
+			// debugMessage($images->toArray()); // exit();
+		?>
+    	<div id="example">
+			<div id="slides">
+				<div class="slides_container">
+                	<?php 
+						foreach($images as $image){
+							// debugMessage($image->toArray());
+					?>
+                    	<?php if($image->isViewable()){ ?>
+                            <div class="slide">
+                                <img src="<?php echo $this->baseUrl($image->getFilePath().'/'.$image->getFileName()); ?>" alt="" />
+                                <div class="caption">
+                                    <p><h3><?php echo $image->getCaptionTitle(); ?></h3><?php echo $image->getCaptionDetail(); ?></p>
+                                </div>
+                            </div>
+                    	<?php } ?>
+                    <?php } ?>
+				</div>
+				<a href="javascript: doNothing();" class="prev"><img src="<?php echo $this->baseUrl('images/arrow-prev.png'); ?>" width="24" height="43" alt="Arrow Prev"></a>
+				<a href="javascript: doNothing();" class="next"><img src="<?php echo $this->baseUrl('images/arrow-next.png'); ?>" width="24" height="43" alt="Arrow Next"></a>
+			</div>
+			<img src="<?php echo $this->baseUrl('images/example-frame.png'); ?>" width="739" height="341" alt="Example Frame" id="frame" />
+		</div>
+    </div>
+    <div id="homebottom" class="globalfont">
+    	<div id="bottom-left"><?php echo $content->getLeftColumnOne(); ?></div>
+        <div id="bottom-right">
+            <!--<div id="rightContent">
+            	<div class="widgetsection height300">
+                    <h3>Featured</h3>
+                    <div>
+                        <ul class="content">
+                        </ul>
+                    </div>
+            	</div>
+           		<div class="widgetsection height300">
+                    <h3>Featured</h3>
+                    <div>
+                        <ul class="content">
+                        </ul>
+                    </div>
+            	</div>
+            </div>-->
+        </div>
+    </div>
+</div>
+<?php
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

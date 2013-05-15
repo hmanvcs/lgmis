@@ -1,0 +1,202 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	$commodity = new Commodity(); 
+	
+	// default title is to enable adding any payee
+	$title = $this->translate("commodity_pagetitle_new"); 
+	$posturl = $this->baseUrl("commodity/create");
+	$button_title = $this->translate("commodity_button_new"); 
+	
+	// set the payee if provided in the url 
+	if (!isEmptyString($request->id)) {
+		$commodity->populate(decode($request->id));
+		$title = sprintf($this->translate("commodity_pagetitle_edit"), $commodity->getName()); 
+		$button_title = $this->translate("commodity_button_edit");
+		$posturl = $this->baseUrl("commodity/edit"); 
+	}
+	
+	#in case of errors in session, populate the fields from session
+	if(!isEmptyString($session->getVar(ERROR_MESSAGE))){ 
+		$commodity->processPost($session->getVar(FORM_VALUES));	
+	}
+	
+	$this->headTitle($title);  
+?>
+<script>
+	$(document).ready(function() {
+		// Validate the price amount
+		$.validator.addMethod("valid_price", function(value, element) {				
+			// only digits and numbers allowed
+			if(!IsValidAmount(value)){
+				return false;
+			}
+			return true;
+		}, "<?php echo $this->translate("commodity_price_invalid_error");?>");
+		
+		// Validate the price amount
+		$.validator.addMethod("valid_price", function(value, element) {				
+			// only digits and numbers allowed
+			if(!IsValidAmount(value)){
+				return false;
+			}
+			return true;
+		}, "<?php echo $this->translate("commodity_price_invalid_error");?>");				
+		
+		$("#commodityform").validate({		
+			// define the validation rules one field at a time
+			rules: {
+				name: "required",
+				categoryid: "required",
+				"commodity_pricecategoryid[]": {
+					"required": true,
+					"minlength": 1
+				},
+				minprice: {
+					required: false,
+					valid_price: true
+				},
+				maxprice: {
+					required: false	,
+					valid_price: true									
+				}
+			}, 
+			// the messages for each of the fields being validated
+			messages: {				
+				name: "<?php echo $this->translate("commodity_name_error"); ?>",
+				categoryid: "<?php echo $this->translate("commodity_category_error"); ?>",
+				"commodity_pricecategoryid[]": "<?php echo $this->translate("commodity_count_pricecategories_error");?>"				
+			},
+			// custom error message location
+			errorPlacement: function(error, element) {
+				if (element.attr("name") == "commodity_pricecategoryid[]"){ 
+					error.appendTo("#commodity_pricecategory_error");
+				} else { 
+					error.insertAfter(element);
+				}
+			}
+		});
+		
+		$(".file").change(function(){
+			// alert($(this).val());
+			$("#hasimage").val('1');
+		});
+
+	}); 
+</script>
+
+<div class="pageinfo"><?php echo $this->translate("commodity_page_info"); ?></div>
+<form id="commodityform" action="<?php echo $posturl; ?>"  method="post" enctype="multipart/form-data">
+  <table class="formtable">
+    <tr class="sectionheading">
+      <td colspan="2"><?php echo $title; ?></td>
+    </tr>
+    <?php if ($sessionhaserror) { ?>
+    <tr>
+      <td class="label">&nbsp;</td>
+      <td class="error"><?php echo $session->getVar(ERROR_MESSAGE); ?></td>
+    </tr>
+    <?php } ?>
+    <tr>
+      <td class="label">&nbsp;</td>
+      <td class="pagedescription"><?php echo $this->translate("required_field_info"); ?></td>
+    </tr>    
+    <tr>
+      <td class="label"><?php echo $this->translate("commodity_name_label"); ?>:<?php echo $this->translate("required_field_marker"); ?></td>
+      <td><input type="text" name="name" id="name" value="<?php echo $commodity->getName(); ?>" /></td>
+    </tr>
+    <tr>
+      <td class="label"><?php echo $this->translate("commodity_description_label"); ?>:</td>
+      <td><textarea class="expanding" id="description" name="description"><?php echo $commodity->getDescription(); ?></textarea></td>
+    </tr>    
+    <tr>
+      <td class="label"><?php echo $this->translate("commodity_category_label"); ?>:<?php echo $this->translate("required_field_marker"); ?></td>
+      <td><?php
+				$commoditycategorylist = new LookupType(); 
+				$commoditycategorylist->setName("ALL_COMMODITY_CATEGORIES"); 
+				$commoditycategorydropdown = new Zend_Form_Element_Select('categoryid',
+									array(
+										'multiOptions' => array_merge_maintain_keys(array('' => '<Select One>'), $commoditycategorylist->getOptionValuesFromQuery()),								
+										'view' => new Zend_View(),
+										'decorators' => array('ViewHelper'),
+										'class' => array("commodityfilter", 'chzn-select'),
+									)
+								);
+				$commoditycategorydropdown->setValue($commodity->getCategoryID()); 
+				echo $commoditycategorydropdown->render(); 
+      ?></td>
+    </tr>
+    <tr>
+      <td class="label"><?php echo $this->translate("commodity_pricecategory_label"); ?>:<?php echo $this->translate("required_field_marker"); ?></td>
+      <td><?php
+	  			
+	  			# lookup for salutations
+				$pricetypelookup = new LookupType();
+				$pricetypelookup->setName("ALL_PRICE_CATEGORIES");     			
+				$ptypes = $pricetypelookup->getOptionValuesFromQuery();
+				if(isApplicationLGMIS()){
+					unset($ptypes[4]); unset($ptypes[3]); unset($ptypes[2]); unset($ptypes[1]);
+				}
+				// debugMessage($ptypes);
+				$prc = new Zend_Form_Element_MultiCheckbox('commodity_pricecategoryid',
+    					array(
+							'multiOptions' => $ptypes, 
+							'view' => new Zend_View(),
+							'decorators' => array('ViewHelper')
+						)
+    				);
+				$prc->setValue($commodity->getPriceCategoryIDs()); 
+				$prc->setSeparator(' ');  
+				echo $prc->render();	
+      ?><br />
+      <div id="commodity_pricecategory_error"></div>
+      </td>
+    </tr>
+    <tr>
+      <td class="label"><?php echo $this->translate("commodity_units_label"); ?>:</td>
+      <td><?php
+			$commodityunitdropdown = new Zend_Form_Element_Select('unitid',
+								array(
+									'multiOptions' => array_merge_maintain_keys(array('' => '<Select One>'), getAllStandardUnits()),								
+									'view' => new Zend_View(),
+									'decorators' => array('ViewHelper')
+								)
+							);
+			$commodityunitdropdown->setValue($commodity->getUnitID()); 
+			echo $commodityunitdropdown->render(); 
+      ?></td>
+    </tr>
+    <tr>
+      <td class="label"><?php echo $this->translate("commodity_minprice_label"); ?>(<?php echo $config->currency->defaultsymbol; ?>):</td>
+      <td><input type="text" name="minprice" id="minprice" class="numberfield" value="<?php echo $commodity->getMinPrice(); ?>" /></td>
+    </tr>
+    <tr>
+      <td class="label"><?php echo $this->translate("commodity_maxprice_label"); ?>(<?php echo $config->currency->defaultsymbol; ?>):</td>
+      <td><input type="text" name="maxprice" id="maxprice" class="numberfield" value="<?php echo $commodity->getMaxPrice(); ?>" /></td>
+    </tr>
+    <tr>
+      <td class="label"><?php echo /*$this->translate("commodity_image_label")*/"Image"; ?>:</td>
+      <td><input class="file" type="file" name="image" id="image" /><br />
+      <label class="pagedescription">select an image file from your computer (Max 2M)</label>
+      </td>
+    </tr>
+  </table>
+  <br />
+  <table class="formtable">
+    <tfoot>
+      <tr>
+        <td><a href="<?php echo $this->baseUrl("commodity/list"); ?>" title="Cancel">Cancel</a>&nbsp;&nbsp;
+          <button type="submit" class="positiveaction" id="submit" name="submit" title="<?php echo $button_title; ?>"><img src="<?php echo $this->baseUrl("images/tick.png"); ?>" /><?php echo $button_title; ?></button>
+          <input type="hidden" name="entityname" value="Commodity" />
+          <input type="hidden" id="id" name="id" value="<?php echo encode($commodity->getID()); ?>" />
+          <input type="hidden" id="hasimage" name="hasimage" value="" />
+          <input type="hidden" id="<?php echo URL_FAILURE; ?>" name="<?php echo URL_FAILURE; ?>" value="<?php echo encode($this->baseUrl("commodity/index")); ?>" /></td>
+          </td>
+      </tr>
+    </tfoot>
+  </table>
+</form>
+<?php
+	$clearsessionformvalues = true; 
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

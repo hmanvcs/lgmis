@@ -1,0 +1,35 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';	
+	
+	$title = "Manage Content"; 
+	$this->headTitle($title);
+	
+?>
+<script>
+$(document).ready(function() {
+	if($('ul#lamislist > li').size() == 0){
+		$("table.lamis").remove();
+	}
+});	
+</script>		
+<h2><?php //echo $title; ?></h2>
+<table class="formtable lgmis">
+  <tr class="sectionheading">
+    <td><?php echo $title; ?></td>
+  </tr>
+  <tr>
+    <td>
+		<ul class="sectionitems" id="lgmislist">			
+            <?php if (isLGMISAdmin()) { ?>
+                <li>
+                    <a class="list" href="<?php echo $this->baseUrl("content/viewhome"); ?>" title="Home Page"><img src="<?php echo $this->baseUrl('images/listitem_bizcategory.png'); ?>" /><br />Home Page</a>
+                    
+                </li>       
+            <?php } ?>
+		</ul>
+    </td>
+  </tr>
+</table>
+<?php	
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

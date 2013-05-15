@@ -1,0 +1,183 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	$locationdetail = new LocationDetail();
+	
+	// default title is to enable adding any payee
+	$title = "Set Up District LGMIS"; 
+	$posturl = $this->baseUrl("locationdetail/create");
+	$button_title = $this->translate("locationdetail_button_new"); 
+	
+	if (!isLGMISAdmin()) {
+		$locationid = $session->getVar('districtid');
+		$locationdetail->setLocationID($locationid);
+	}
+
+	// set load the offer if the id is available in the url 
+	if (!isEmptyString($request->id)) {
+		$locationdetail->populate(decode($request->id));
+		$button_title = $this->translate("global_button_save_changes"); 
+		// $posturl = $this->baseUrl("locationdetail/create");
+		$title = 'Update '.$locationdetail->getLocation()->getName()." District Info"; 
+	}
+	
+	#in case of errors in session, populate the fields from session
+	if(!isEmptyString($session->getVar(ERROR_MESSAGE))){ 
+		$locationdetail->processPost($session->getVar(FORM_VALUES));	
+	}
+	
+	$this->headTitle($title);  
+?>
+<script>
+$(document).ready(function(){
+	$('textarea').attr('class','').addClass('expanding');
+	//$("#locationid_chzn").css({'width':'204px'});
+	
+	$("#locationform").validate({
+		//define the validation rules one field at a time
+		rules: {
+			locationid: "required"
+		},
+		//the messages for each of the fields being validated
+		messages: {
+			locationid: "Please select a District to Setup"			
+		},
+		// custom error positions
+		errorPlacement: function(error, element) {
+			switch(element.attr("name")){					
+				case 'locationid':
+					error.appendTo("#locationid_error");
+					break;	
+				default:
+					error.insertAfter(element);
+					break;
+			}
+		}		
+	});
+	
+	$(".file").change(function(){
+		// alert($(this).val());
+		$("#hasimage").val('1');
+	});
+	
+});
+</script>
+<style>
+#locationform textarea {
+	width: 600px; 
+	min-height: 250px; 
+}
+.ui-widget-content {
+	min-height:350px;
+}
+.ui-tabs .ui-tabs-panel {
+	padding:10px;
+}
+.ui-tabs .ui-tabs-nav li a {
+	font-weight:normal;
+	font-size:12px;
+}
+.nicEdit-panelContain {
+	margin:10px 0 0 10px;
+}
+</style>
+<div class="pageinfo"><?php echo $this->translate("locationdetail_page_info"); ?></div>
+<form id="locationform" action="<?php echo $posturl; ?>" method="post" enctype="multipart/form-data">
+<?php if ($sessionhaserror) { ?>
+	<div class="error"><?php echo $session->getVar(ERROR_MESSAGE); ?></div><br />
+<?php } ?>
+<?php if(isNotAnEmptyString($session->getVar(SUCCESS_MESSAGE))){ ?>
+  <div class="successmessage"><?php echo $session->getVar(SUCCESS_MESSAGE); ?></div><br />
+<?php } ?>
+    <table class="formtable">
+        <tr class="sectionheading">
+          <td colspan="2"><?php echo $title; ?></td>
+        </tr>
+		<?php if(isLGMISAdmin()) { ?>
+        <tr>
+            <td style="vertical-align:middle;" class="label"><?php echo $this->translate("lgmis_location_label"); ?>:<?php echo $this->translate("required_field_marker"); ?></td>
+            <td style="vertical-align:middle;">
+				<?php
+                    $districtlist = new LookupType(); 
+                    $districtlist->setName("ALL_DISTRICTS");
+                    $districtdropdown = new Zend_Form_Element_Select('locationid',
+                        array(
+                            'multiOptions' => array_merge_maintain_keys(array('' => 'Browse Districts'), $districtlist->getOptionValuesFromQuery()),								
+                            'view' => new Zend_View(),
+                            'decorators' => array('ViewHelper'),
+                            'class' => array("filterselect", 'chzn-select'),
+                        )
+                    );
+                    $districtdropdown->setValue($locationdetail->getLocationID()); 
+                    echo $districtdropdown->render(); 
+                ?><div id="locationid_error"></div></td>
+        </tr>
+        <?php } ?>
+    	<tr>
+		  	<td colspan="2">
+            	<div id="tabs">   
+                    <ul>
+                       <li><a href="#summary"><?php echo $this->translate("locationdetail_summary_label"); ?></a></li>
+                       <li><a href="#inputsector"><?php echo $this->translate("locationdetail_agriculturalinputprices_label"); ?></a></li>       
+                       <li><a href="#bizsector"><?php echo $this->translate("locationdetail_businesssector_label"); ?></a></li>
+                       <li><a href="#toursector"><?php echo $this->translate("locationdetail_tourismsector_label"); ?></a></li>
+                       <li><a href="#cropsector"><?php echo $this->translate("locationdetail_cropproduction_label"); ?></a></li>
+                       <li><a href="#livestocksector"><?php echo $this->translate("locationdetail_livestockproduction_label"); ?></a></li>
+                       <li><a href="#handcraftsector"><?php echo $this->translate("locationdetail_handcraftsector_label"); ?></a></li>
+                       <li><a href="#fishsector"><?php echo $this->translate("locationdetail_fishproduction_label"); ?></a></li> 
+                       <li><a href="#map"><?php echo /*$this->translate("locationdetail_map_label")*/"Area Map"; ?></a></li>       
+                    </ul>
+                    <div id="summary">
+                        <textarea class="xexpanding" cols="50" id="summary" name="summary"><?php echo $locationdetail->getSummary(); ?></textarea>
+                    </div>
+                    <div id="inputsector">
+                        <textarea class="expanding" id="agriculturalinputprices" name="agriculturalinputprices"><?php echo $locationdetail->getAgriculturalInputPrices(); ?></textarea>
+                    </div>
+                    <div id="bizsector">
+                        <textarea class="expanding" id="businesssector" name="businesssector"><?php echo $locationdetail->getBusinessSector(); ?></textarea>
+                    </div>
+                    <div id="toursector">
+                        <textarea class="expanding" id="tourismsector" name="tourismsector"><?php echo $locationdetail->getTourismSector(); ?></textarea>
+                    </div>
+                    <div id="cropsector">
+                        <textarea class="expanding" id="cropproduction" name="cropproduction"><?php echo $locationdetail->getCropProduction(); ?></textarea>
+                    </div>
+                    <div id="livestocksector">
+                        <textarea class="expanding" id="livestockproduction" name="livestockproduction"><?php echo $locationdetail->getLivestockProduction(); ?></textarea>
+                    </div>
+                    <div id="handcraftsector">
+                        <textarea class="expanding" id="handcraftsector" name="handcraftsector"><?php echo $locationdetail->getHandcraftSector(); ?></textarea>
+                    </div>
+                    <div id="fishsector">
+                        <textarea class="expanding" id="fishingsector" name="fishingsector"><?php echo $locationdetail->getFishProduction(); ?></textarea>
+                    </div>
+                    <div id="map">
+                        <?php echo /*$this->translate("commodity_image_label")*/"Image"; ?>: <input class="file" type="file" name="image" id="image" /><br />
+                          <label class="pagedescription">select an image file from your computer (Max 2M)</label>
+                    </div>
+                </div>
+            </td>
+        </tr>
+  </table>
+  <table class="formtable formactions">
+    <tfoot>
+      <tr>
+        <td align="center"><a href="<?php echo $this->baseUrl("dashboard"); ?>" title="Cancel">Cancel</a>&nbsp;&nbsp;
+          <button type="submit" class="positiveaction" id="submit" name="submit" title="<?php echo $button_title; ?>"><img src="<?php echo $this->baseUrl("images/tick.png"); ?>" /><?php echo $button_title; ?></button>
+          <input type="hidden" name="entityname" value="LocationDetail" />
+          <input type="hidden" id="id" name="id" value="<?php echo encode($locationdetail->getID()); ?>" />
+          <?php if(!isLGMISAdmin()) { ?>
+          <input type="hidden" id="locationid" name="locationid" value="<?php echo $locationdetail->getLocationID(); ?>" />
+          <?php } ?>
+          <input type="hidden" id="<?php echo SUCCESS_MESSAGE; ?>" name="<?php echo SUCCESS_MESSAGE; ?>" value="<?php echo $this->translate("global_success_message"); ?>" />
+          <input type="hidden" id="hasimage" name="hasimage" value="" />
+          <input type="hidden" id="<?php echo URL_FAILURE; ?>" name="<?php echo URL_FAILURE; ?>" value="<?php echo encode($this->baseUrl("locationdetail/index")); ?>" />
+          </td>
+      </tr>
+    </tfoot>
+  </table>
+</form>
+<?php
+	$clearsessionformvalues = true; 
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

@@ -1,0 +1,103 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	$content = new Content();
+	$content->populate(1);
+	
+	// debugMessage($content->toArray());
+	// default title is to enable adding any payee
+	$title = "Home Page Content"; 
+	
+	$this->headTitle($title);  
+?>
+<style>
+.ui-widget-content {
+	min-height:350px;
+}
+.ui-tabs .ui-tabs-nav li a {
+	font-weight:normal;
+	font-size:12px;
+}
+table.formtable tr td, table.formtable tr td.label {
+	vertical-align:middle;
+}
+label.label {
+	color:#224B87;
+	font-size:12px;
+}
+</style>
+<div class="pageinfo"><?php echo /*$this->translate("locationdetail_page_info")*/"The home page content and images"; ?></div>
+<?php if(isNotAnEmptyString($session->getVar(SUCCESS_MESSAGE))){ ?>
+<div class="successmessage"><?php echo $session->getVar(SUCCESS_MESSAGE); ?></div>
+<?php } ?>
+<table class="formtable">
+  <tr class="sectionheading">
+    <td><?php echo $title; ?></td>
+  </tr>
+  <tr>
+  	<td>
+    	<div id="tabs">   
+            <ul>
+               <li><a href="#text">Content</a></li>
+               <li><a href="#images">Slide Show</a></li>       
+            </ul>
+            <div id="text">
+            	<table class="formtable" style="width:100%;">
+                	<tr>
+                    	<td class="label"><label class="label">Page Title:</label></td>
+                    </tr>
+                    <tr>
+                    	<td><?php echo $content->getPageTitle(); ?></td>
+                    </tr>
+                    <tr>
+                    	<td class="label"><label class="label">Summary:</label></td>
+                    </tr>
+                    <tr>
+                    	<td><?php echo $content->getSummary(); ?></td>
+                    </tr>
+                    <tr>
+                    	<td class="label"><label class="label">Details:</label></td>
+                    </tr>
+                    <tr>
+                    	<td><?php echo $content->getLeftColumnOne(); ?></td>
+                    </tr>
+                </table>
+            </div>
+            <div id="images">
+            	<?php 
+					$images = $content->getImageList();
+					// debugMessage($images->toArray());
+				?>
+            	<div class="slidesimages">
+                	<?php 
+						foreach($images as $image){
+					?>
+                            <div class="slide">
+                           		<h3 style="display:block;"><?php echo $image->getCaptionTitle(); ?></h3>
+                                <p style="display:block; margin-bottom:10px;"><?php echo $image->getCaptionDetail(); ?></p>
+                                <img src="<?php echo $this->baseUrl($image->getFilePath().'/'.$image->getFileName()); ?>" alt="" /><br /><br />
+                            </div>
+                    <?php } ?>
+				</div>
+            </div>
+        </div>
+    </td>
+  </tr>
+</table>
+<table class="formtable formactions">
+  <tfoot>
+        <tr>
+            <td align="center">
+            <?php if ($acl->checkPermission('Location Details', ACTION_EDIT)) { ?>
+            	<a href="<?php echo $this->baseUrl("content/indexhome/id/".encode($content->getID())); ?>" class="positiveaction" title="Update Content"><img src="<?php echo $this->baseUrl('images/edit.png'); ?>" />Update Content</a>
+            <?php } ?> 
+            <a href="<?php echo $this->baseUrl('content/list'); ?>" class="positiveaction" title="Return to List"><img src="<?php echo $this->baseUrl('images/arrow_undo.png'); ?>" />List</a>
+            </td>
+        </tr>
+  </tfoot>
+</table>
+<?php
+	$session->setVar(SUCCESS_MESSAGE, "");
+	$clearsessionformvalues = true; 
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

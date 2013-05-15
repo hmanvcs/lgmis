@@ -1,0 +1,356 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	$cropsector = new HandCraftInformation();
+	$cropsector->setCollectedByID($userid);
+	
+	$posturl = $this->baseUrl("handcraftsector/processhandcraftsectorinfo");
+	$title = "Update Handcraft Sector Information"; 
+	$button_title_save = "Save"; 
+	
+	if(isLGMISAdmin()) { 
+		$can_view_all = true;
+	} else {
+		$can_view_all = false;
+		if(!isEmptyString($session->getVar("districtid"))){
+			$title = "Update ".$session->getVar("districtname")." District Handcraft Sector Information";
+			$cropsector->setLocationID($session->getVar('districtid')); 
+		}
+	}
+	
+	if(isEmptyString($request->quarter)){
+		$request->setParam('quarter', '2013:2'); 
+	}
+	
+	$quarterquery = "";
+	if(!isEmptyString($request->quarter)){
+		$quarter_dates = getDatesForQuarter($request->quarter);
+		// debugMessage($quarter_dates);
+		$quarterquery = " AND h.quarter = '".str_replace(':','.',trim($request->quarter))."' ";
+		$startdate = changeDateFromPageToMySQLFormat($quarter_dates['startdate']);
+		$enddate = changeDateFromPageToMySQLFormat($quarter_dates['enddate']);
+	}
+	
+	$custom_location_query = " ";
+	if(isLGMISOfficial()) { 
+		$custom_location_query = " AND h.locationid = '".$cropsector->getLocationID()."' ";
+	}
+
+	$query = "SELECT cd.id AS `commodityid`,  h.id AS `cropsectorid`, cd.`name` AS `Commodity`, h.collectedbyid AS `Collector`, h.startdate AS `Start Date`, h.enddate AS `End Date`, h.datecollected AS `Date Collected`, h.materialsource AS `Material Source`, h.`materialtype` AS `Material Type`, h.`market` AS `Markets`, h.`creditsource` AS `Sources of Credit`, h.locationid AS `locationid`, h.quarter as `Quarter` FROM commodity AS cd 
+	Inner Join commoditypricecategory AS cp ON (cd.id = cp.commodityid) 
+	LEFT JOIN handcraftinformation h ON(h.commodityid = cd.id AND h.quarter = '".str_replace(':','.',trim($request->quarter))."' ".$custom_location_query.") 
+	WHERE (cp.pricecategoryid= '9') ORDER BY cd.`name`";
+	// debugMessage($query);
+
+	$conn = Doctrine_Manager::connection();  
+	$crops = $conn->fetchAll($query);
+	
+	// $unitvalues = getAllStandardUnits();
+	
+	$this->headTitle($title);  
+?>
+<script>
+	$(document).ready(function() {
+		
+		// datepickerOpts.maxDate = new Date();   
+		$("#datecollected").datepicker(datepickerOpts); 
+
+		$("#indexform").validate({		
+			// define the validation rules one field at a time
+			rules: {
+				datecollected: "required",
+				collectedbyid: "required",
+				locationid: "required",
+				quarter:  "required"
+			}, 
+			// the messages for each of the fields being validated
+			messages: {				
+				datecollected: "<?php echo $this->translate("cropsector_datecollected_error"); ?>",
+				collectedbyid: "<?php echo $this->translate("cropsector_collectedby_error"); ?>",
+				locationid: "<?php echo $this->translate("cropsector_location_error"); ?>",
+				quarter: "<?php echo $this->translate("cropsector_quarter_error"); ?>"
+			},
+			// custom error positions
+			errorPlacement: function(error, element) {
+				switch(element.attr("name")){					
+					case 'datecollected':
+						error.appendTo("#datecollected_error");
+						break;	
+					case 'collectedbyid':
+						error.appendTo("#collectedbyid_error");
+						break;	
+					case 'locationid':
+						error.appendTo("#locationid_error");
+						break;
+					case 'quarter':
+						error.appendTo("#quarter_error");
+						break;
+					default:
+						error.insertAfter(element);
+						break;
+				}			
+			}
+		});
+			
+		// Copy buttons at the top to the bottom
+		$("td.bottombuttons").html($("td.topbuttons").html());
+		
+		// reload the page to the fetch data, if any, for the new selected quarter  
+		$("#quarter").change(function(){
+			var selectedquarter =  $("#quarter").val();
+			// set the default dialog options
+			
+			$("#confirmdialog").dialog(dialogOpts);
+			// add the dialog buttons 
+			$("#confirmdialog").dialog('option', 'buttons', {
+				 " Yes " : function() {
+					  				$(window.location).attr('href', "<?php echo $this->baseUrl('handcraftsector/handcraftsectorinfo/quarter/'); ?>" + selectedquarter);	
+					  },
+				 "Cancel" : function() {
+								  $(this).dialog("close");
+					  }
+			});
+			// open the dialog 
+			$('#confirmdialog').dialog('open').height('auto');
+		});
+		
+		$("#addrow").click(showNewRule);		
+		function showNewRule() {					
+			$(".hidden_row:first").removeClass("hidden_row").addClass("visible_row");
+			// remove disabled attr from the fields
+			$("tr.visible_row input").attr("disabled", false);
+			$("tr.visible_row select").attr("disabled", false);	
+					
+			// hide or show add button
+			hideShowAdd();		
+		}
+			
+		// delete a row
+		$(".remove").click(function(){			
+			var row_to_hide = $(this).attr('id');
+			if(window.confirm("Are you sure you want to remove this row? \n Click 'OK' to confirm or 'Cancel' to stay on this page.")){
+				// $("tr."+row_to_hide).addClass("hidden_row").removeClass("visible_row");
+				$("tr."+row_to_hide).fadeOut('slow', function(){ $(this).addClass("hidden_row").removeClass("visible_row"); });
+				// $("input, select").attr("disabled", true);	
+				$("tr."+row_to_hide+" input, tr."+row_to_hide+" select, tr."+row_to_hide+" textarea").val('').attr("disabled", true);
+				// revalidate the hidden field
+				$("form#indexform").validate().element("tr."+row_to_hide+" select");
+				$("form#indexform").validate().element("tr."+row_to_hide+" textarea");
+				// hide or show add button
+				hideShowAdd();
+			
+			} else {
+				return false;
+			}
+		});	
+		
+		//if the maximum no of rows is added, hide the link to add another row
+		function hideShowAdd(){
+			//if the maximum no of rows is added, hide the link to add another row
+			var maxrows = '<?php echo $config->locationstatistic->maximumrows; ?>';
+			if ($("tr.visible_row").size() == maxrows) {
+				$("#addrow").hide();
+			} else {
+				$("#addrow").show();			
+			}			
+		}
+		
+	}); 
+	// check that price is a valid number
+	function IsValidAmount(value){
+		var ValidChars = "0123456789";
+		var valid=true;
+		var Char;
+		
+		for (i = 0; i < value.length && valid == true; i++){ 
+			Char = value.charAt(i); 
+			if (ValidChars.indexOf(Char) == -1) {
+				valid = false;
+			}
+		}
+		return valid;
+	}
+</script>
+<style>
+#rightcolumn {
+	display: none; 
+} 
+#contentwrapper {
+	width: 950px;
+	border:solid 1px #CCCCCC;
+	border-top:none;
+	background-color:#FFFFFF;
+	background-image:none;
+}
+table.formtable {
+	width: 100%; 
+}
+input.numberfield {
+	width: 75px;
+	text-align:right;
+}
+select.chzn-select.unit {
+	min-width:80px;
+	max-width:100px;
+}
+select.chzn-select.commodity {
+	max-width:175px;
+	width:175px;
+}
+textarea {
+	width: 170px; 
+} 
+</style>
+<div id="confirmdialog" class="hidden" title="Confirm change of Quarter">You are about to switch Quarters. Please note that the page will now be reloaded, you will lose any unsaved changes to the current Quarter.</div>
+<div class="pageinfo"><?php echo $this->translate("handcraft_input_create_info"); ?></div>
+<form id="indexform" action="<?php echo $posturl; ?>" method="post">
+  <table class="formtable">
+    <tr class="sectionheading">
+      <td colspan="2"><?php echo $title; ?></td>
+    </tr>
+    <?php if ($sessionhaserror) { ?>
+    <tr>
+      <td class="label">&nbsp;</td>
+      <td class="error"><?php echo $session->getVar(ERROR_MESSAGE); ?></td>
+    </tr>
+    <?php } ?>
+    <tr>
+      <td class="label">&nbsp;</td>
+      <td class="pagedescription"><?php echo $this->translate("required_field_info"); ?>
+    </tr>
+    <tr>
+      <td class="label"><?php echo $this->translate("cropsector_datecollected_label"); ?>:<?php echo $this->translate("required_field_marker"); ?></td>
+      <td><input type="text" name="datecollected" id="datecollected" class="datefield" value="<?php echo changeMySQLDateToPageFormat($crops[0]['Date Collected']);?>" />
+      <div id="datecollected_error"></div></td>
+    </tr>
+    <?php if($can_view_all ) { ?>
+    <tr>
+      <td class="label"><?php echo $this->translate("cropsector_input_location_label"); ?>:<?php echo $this->translate("required_field_marker"); ?></td>
+       <td>
+	   <?php
+			$districtlist = new LookupType(); 
+			$districtlist->setName("AVAILABLE_LGMIS_DISTRICTS");
+			$districtdropdown = new Zend_Form_Element_Select('locationid',
+								array(
+									'multiOptions' => array_merge_maintain_keys(array('' => '<Select One>'), $districtlist->getOptionValuesFromQuery()),								
+									'view' => new Zend_View(),
+									'decorators' => array('ViewHelper'),
+									'class' => array("filterselect", 'chzn-select'),
+								)
+							);
+			$districtdropdown->setValue($crops[0]['locationid']); 
+			echo $districtdropdown->render(); 
+      ?>
+      <div id="locationid_error"></div></td>
+    </tr>
+    <?php } else { ?>
+      	<input type="hidden" id="locationid" name="locationid" value="<?php echo $cropsector->getLocationID(); ?>" />
+    <?php } ?>
+    <tr>
+      <td class="label"><?php echo $this->translate("cropsector_collectedby_label"); ?>:<?php echo $this->translate("required_field_marker"); ?></td>
+      <td><?php echo $cropsector->getCollectedBy()->getName(); ?>
+        <input type="hidden" name="collectedbyid" id="collectedbyid" value="<?php echo $cropsector->getCollectedByID(); ?>" /><div id="collectedbyid_error"></div>
+      </td>
+    </tr>
+    <tr>
+      <td class="label"><?php echo $this->translate("cropsector_quarter_label"); ?>:<?php echo $this->translate("required_field_marker"); ?>
+      </td>
+      <td>
+      	<?php
+			$quaters = array_merge_maintain_keys(array('' => '<Select>'), getYearQuartersList());
+			$quarterdropdown = new Zend_Form_Element_Select('quarter',
+					array(
+						'multiOptions' => $quaters,								
+						'view' => new Zend_View(),
+						'decorators' => array('ViewHelper'),
+						'class' => array('chzn-select','quat'),
+					)
+				);
+			$quarterdropdown->setValue(getQuarterFromDate($startdate)); 
+			echo $quarterdropdown->render(); 
+      	?><div id="quarter_error"></div>
+      </td>
+    </tr>
+  </table>
+  <br />
+  <table class="formtable commodities">
+      <tr class="sectionheading">
+        <td><?php echo $this->translate("cropsector_commodity_label"); ?></td>
+        <td align="center" width="180" ><?php echo $this->translate("handcraft_materialsource_label"); ?></td>
+        <td align="center" width="180" ><?php echo $this->translate("handcraft_materialtype_label"); ?></td>
+        <td align="center" width="180" ><?php echo $this->translate("handcraft_market_label"); ?></td>
+        <td align="center" width="180" ><?php echo /*$this->translate("handcraft_creditsource_label")*/"Sources of Credit"; ?></td>
+      </tr>
+      <?php
+			$e = 0;
+			$cropcount = count($crops);
+			foreach($crops as $crop){
+				// if action is create, blank out any prices preset from previous submission			
+		?>
+        <tr>
+            <td align="left" class="label nowrapping"><?php echo $crop['Commodity']; ?><input type="hidden" name="commodityid_<?php echo $e; ?>" id="commodityid_<?php echo $e; ?>" value="<?php echo $crop['commodityid']; ?>" /></td>
+            <td align="center"><textarea name="materialsource_<?php echo $e; ?>" id="materialsource_<?php echo $e; ?>"><?php echo $crop['Material Source']; ?></textarea></td>
+            <td align="center"><textarea name="materialtype_<?php echo $e; ?>" id="materialtype_<?php echo $e; ?>"><?php echo $crop['Material Type']; ?></textarea></td>
+            <td align="center"><textarea name="market_<?php echo $e; ?>" id="market_<?php echo $e; ?>"><?php echo $crop['Markets']; ?></textarea></td>
+            <td align="center"><textarea name="creditsource_<?php echo $e; ?>" id="creditsource_<?php echo $e; ?>"><?php echo $crop['Sources of Credit']; ?></textarea>
+            <input type="hidden" name="id_<?php echo $e; ?>" id="id_<?php echo $e; ?>" value="<?php echo $crop['cropsectorid']; ?>" /></td>
+        </tr>
+      <?php $e++; } ?>
+      <?php 
+		// debugMessage($cropcount);
+		//$e = 1;
+		$commoditylist = new LookupType(); 
+		$commoditylist->setName("ALL_COMMODITIES");
+		$commodities = $commoditylist->getOptionValuesFromQuery();
+		
+		$def_rows = /*$config->locationstatistic->rowsdisplayedfornew*/2;
+		$max_rows = $cropcount+10;
+		for($e = $cropcount; $e <= $max_rows; $e++) {
+			$class = "visible_row";
+			if($e > $cropcount+$def_rows){
+				$class = "hidden_row";
+			} 
+	?>
+    <tr class="<?php echo $class;?> remove_<?php echo $e; ?>">
+          <td>
+          	<div style="position:relative;">
+				<?php
+					$commoditydropdown = new Zend_Form_Element_Select('commodityid_'.$e,
+										array(
+											'multiOptions' => array_merge_maintain_keys(array('' => '<Select One>'), $commodities),	
+											'view' => new Zend_View(),
+											'decorators' => array('ViewHelper'),
+											'class' => array("commodity", 'chzn-select'),
+										)
+									);
+					$commoditydropdown->setValue(''); 
+					echo $commoditydropdown->render(); 
+		 
+                  ?>
+              </div>
+              <div id="commodityid_error_<?php echo $e; ?>"></div>
+          	</td>
+          	<td align="center"><textarea name="materialsource_<?php echo $e; ?>" id="materialsource_<?php echo $e; ?>"></textarea></td>
+            <td align="center"><textarea name="materialtype_<?php echo $e; ?>" id="materialtype_<?php echo $e; ?>"></textarea></td>
+            <td align="center"><textarea name="market_<?php echo $e; ?>" id="market_<?php echo $e; ?>"></textarea></td>
+            <td align="center"><textarea name="creditsource_<?php echo $e; ?>" id="creditsource_<?php echo $e; ?>"></textarea>
+            <input type="hidden" name="id_<?php echo $e; ?>" id="id_<?php echo $e; ?>" value="" /></td>
+	</tr>          
+    <?php } ?>
+  </table>
+  <table class="formtable">
+    <tfoot>
+      <tr>
+        <td class="xtopbuttons"><a href="<?php echo $this->baseUrl("dashboard"); ?>" title="<?php echo $button_title_save; ?>">Cancel</a>&nbsp;&nbsp;
+        	<a href="javascript: doNothing();" id="addrow" class="positiveaction" title="<?php echo $this->translate("locationstatistic_button_addrow_label"); ?>"><img src="<?php echo $this->baseUrl("images/add.png"); ?>" /><?php echo $this->translate("locationstatistic_button_addrow_label"); ?></a>&nbsp;&nbsp;
+          <button type="submit" class="positiveaction save" name="save"><img src="<?php echo $this->baseUrl("images/tick.png"); ?>" /><?php echo $button_title_save; ?></button>
+          <input type="hidden" name="counter" id="counter" value="<?php echo $max_rows; ?>" />
+          </td>
+      </tr>
+    </tfoot>
+  </table>
+</form>
+<?php
+	$clearsessionformvalues = true; 
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

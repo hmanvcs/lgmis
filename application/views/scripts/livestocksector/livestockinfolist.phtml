@@ -1,0 +1,207 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	# Page title
+	$title = "Livestock Sector Information";
+	$this->headTitle($title);
+	
+	$can_view_all = true;
+	if(isLGMISOfficial()) {
+		$request->setParam('ls'.HTML_TABLE_COLUMN_SEPARATOR.'locationid', $session->getVar('districtid')); 
+		$district = new District();
+		$district->populate($session->getVar('districtid'));
+		$title = $district->getName()." District Livestock Sector Information";
+		$can_view_all = false;
+	}	
+	
+	#generate the start and end dates
+	$quarterquery = "";
+	if(!isEmptyString($request->quarter)){
+		// debugMessage(trim($request->quarter));
+		$quarterquery = " AND ls.quarter = '".str_replace(':','.',trim($request->quarter))."' ";
+	}
+	
+	# Create an instance of the class to handle the pagination
+	$paginate = new Pagination();	
+	$paginate->setView($this);
+	# set the search columns to be used on this list
+	$paginate->setSearchColumns(array("l.name","co.name"));
+	$paginate->setFilterColumns(array("ls.locationid", "ls.commodityid", "ls.startdate", "ls.enddate"));
+	$paginate->setDefaultSortBy("ls.enddate");	
+	$paginate->setDefaultSortOrder("DESC");
+	$paginate->setStartAndEndDateFilterColumn("ls.enddate");
+	$paginate->setItemCountPerPage("25");
+	
+	$paginate->processPost($request->getParams());
+	$all_results_query = "SELECT ls.id, l.name AS `Location`, co.name AS `Commodity`, ls.breedsource AS `Source of Breeds`,  ls.pests AS `Pests`, ls.diseases AS `Diseases`, ls.creditsource AS `Source of Credit`, ls.quarter as `Quarter` FROM livestockinformation AS ls INNER JOIN location l ON (ls.locationid = l.id) INNER JOIN commodity co ON (ls.commodityid = co.id) WHERE ls.id <>'' ".$quarterquery.$paginate->getSearchAndFilterSQL()." group by ls.commodityid ".$paginate->getSortSQL();
+	
+	$paginate->setItemCountFromSQLQuery($all_results_query);
+	
+	$current_results_query = $all_results_query." ".$paginate->getSQLLimit();
+	// echo $current_results_query;
+	$session->setVar(ALL_RESULTS_QUERY, $all_results_query);
+	$session->setVar(CURRENT_RESULTS_QUERY, $current_results_query);
+	# the query string to be appended to the return to list URL
+	$session->setVar('list_query_string'.$request->getControllerName(), $request->getParams());
+	
+	$conn = Doctrine_Manager::connection(); 
+	$result = $conn->fetchAll($current_results_query);
+	$has_no_data = (count($result) == 0) ? true : false; 
+	
+	# This variable stores the number of redundant columns returned in the query so that when we are printing
+	# we are able to know how many columns to ignore. This variable is sent in the print URL
+	$number_of_redundant_columns = 1;
+	
+	# the columns which contain numbers in the invoice query
+	# Please note that the column count begins at 0
+	$export_number_column_list = "";	
+?>
+<script>
+$(document).ready(function(){
+	// change the date format since the short format with / corrupts the urls
+	datepickerOpts.dateFormat = '<?php echo $config->dateandtime->javascriptmediumformat; ?>'; 
+	$("#startdate, #enddate").datepicker(datepickerOpts); 
+	$("#listform").validate({
+		errorPlacement: function(error, element) {
+			error.appendTo("#errormessage");
+		},
+		rules: {			
+			enddate: {					
+				enddateafterstartdate: true
+			}				
+		}
+	});
+	
+});
+</script>
+<style>
+select.chzn-select.quat {
+	min-width:115px;
+	width:115px;
+}
+table.filtersection, table.filtersection td img {
+	padding:0;
+}
+</style>
+<form action="<?php echo $this->baseUrl("livestocksector/livestockinfolistsearch"); ?>" method="get" id="listform">
+<table class="filtercontainer">
+    <tr>
+      <td><table class="filtersection">
+          <tr>
+            <td width="175">From:&nbsp;
+            <input name="startdate"  id="startdate" type="text" class="datefield startdate" value="<?php echo $request->startdate; ?>" /></td>
+            <td>To:&nbsp;
+            <input name="enddate" id="enddate" type="text" class="datefield autosubmitsearchform"  value="<?php echo $request->enddate; ?>" /></td>
+            <td style="vertical-align:middle;">
+            <?php
+				$quaters = array_merge_maintain_keys(array('' => 'All Quarters'), getYearQuartersList());
+				$quarterdropdown = new Zend_Form_Element_Select('quarter',
+						array(
+							'multiOptions' => $quaters,								
+							'view' => new Zend_View(),
+							'decorators' => array('ViewHelper'),
+							'class' => array('chzn-select','quat'),
+						)
+					);
+				$quarterdropdown->setValue($request->getParam('quarter')); 
+				echo $quarterdropdown->render(); 
+			  ?>
+            </td>
+         </tr>
+         <tr>
+          	<td colspan="3">
+            <?php if($can_view_all) { ?>
+				<?php
+                    $districtlist = new LookupType(); 
+                    $districtlist->setName("AVAILABLE_LGMIS_DISTRICTS");
+                    $districtdropdown = new Zend_Form_Element_Select('ls'.HTML_TABLE_COLUMN_SEPARATOR.'locationid',
+                                        array(
+                                            'multiOptions' => array_merge_maintain_keys(array('' => 'All Districts'), $districtlist->getOptionValuesFromQuery()),								'view' => new Zend_View(),
+                                            'decorators' => array('ViewHelper'),
+                                            'class' => array('filterselect', 'chzn-select')
+                                        )
+                                    );
+                    $districtdropdown->setValue($request->getParam('ls'.HTML_TABLE_COLUMN_SEPARATOR.'locationid')); 
+                    echo $districtdropdown->render(); 
+                  ?>
+            <?php } ?>
+             <div id="errormessage"></div>
+            </td>
+          </tr>
+        </table></td>
+      <td><table>
+          <tr>
+            <td><input class="filterselect" type="text" name="searchterm" id="searchterm" value="<?php echo $request->searchterm; ?>" title="Enter your search term here and click search" /></td>
+          </tr>
+          <tr>
+            <td><button type="submit" class="positiveaction" id="searchbutton" title="Click here to Search or Filter"><img src="<?php echo $this->baseUrl("images/zoom_in.png"); ?>" alt="Search"/>Search</button></td>
+          </tr>
+        </table></td>
+    </tr>
+  </table>
+  <?php if(isNotAnEmptyString($session->getVar(SUCCESS_MESSAGE))){ ?>
+  <div class="successmessage"><?php echo $session->getVar(SUCCESS_MESSAGE); ?></div>
+  <?php } ?>
+  <?php // show a message that there are no items to display
+	if ($has_no_data) {
+?>
+  <label class="error"><?php echo $this->translate("livestocksector_list_norecords"); ?></label>
+  <?php } else { ?>
+  <div id="counter"><?php echo sprintf($this->translate("global_list_counter"), $paginate->getItemCounterText()); ?></div>
+  <div id="listcounter"><?php echo $this->listcountdropdown; ?></div>
+  <div id="print"><a title="<?php echo $this->translate('global_print_as'); ?>" href="<?php echo $this->baseUrl('index/printerfriendly/'.EXPORT_NUMBER_COLUMN_LIST.'/'.$export_number_column_list.'/'.EXPORT_IGNORE_COLUMN_COUNT.'/'.$number_of_redundant_columns.'/'.PAGE_TITLE.'/'.$title); ?>" target="_blank"><?php echo $this->translate('global_print'); ?>&nbsp;<img src="<?php echo $this->baseUrl('images/printer.png'); ?>" alt="<?php echo $this->translate('global_print_as'); ?>" /></a></div>
+  <?php if ($acl->checkPermission('Livestock Production', ACTION_EXPORT)) { ?>
+  <div id="export"><a title="<?php echo $this->translate('global_export_as_excel'); ?>" href="<?php echo $this->baseUrl('index/exceldownload/'.EXPORT_NUMBER_COLUMN_LIST.'/'.$export_number_column_list.'/'.EXPORT_IGNORE_COLUMN_COUNT.'/'.$number_of_redundant_columns); ?>" target="_blank"><?php echo $this->translate('global_export_as'); ?>&nbsp;<img src="<?php echo $this->baseUrl('images/excel.png'); ?>" alt="<?php echo $this->translate('global_export_as_excel'); ?>" /></a></div>
+  <?php } ?>
+  <div id="listresults_div">
+    <h2><?php echo $title; ?></h2>
+    <table class="list">
+      <thead>
+        <tr>
+        <?php if($can_view_all) { ?>
+            <td width="110"><?php echo $paginate->getSortLinkForColumn('ls.locationid','District'); ?></td>
+        <?php } ?>
+          <td align="left"><?php echo $this->translate("livestocksector_commodity_label"); ?></td>
+          <td align="left" width="150"><?php echo $this->translate("livestocksector_pests_label"); ?></td>
+          <td align="left" width="150"><?php echo $this->translate("livestocksector_diseases_label"); ?></td>
+          <td align="center" width="90"><?php echo $this->translate("cropsector_quarter_label"); ?></td>
+        </tr>
+      </thead>
+      <tbody>
+        <?php 				  		
+            	foreach($result as $line){							
+            ?>
+        <tr>
+        <?php if ($can_view_all) { ?>
+            <td class="nowrapping"><?php echo $line['Location']; ?></td>
+         <?php } ?>
+          <td class="nowrapping label"><?php echo $line['Commodity']; ?></td>
+          <td class="nowrapping"><?php echo isEmptyString($line['Pests']) ? '--' : $line['Pests']; ?></td>
+          <td class="nowrapping"><?php echo isEmptyString($line['Diseases']) ? '--' : $line['Diseases']; ?></td>
+          <td align="center">
+			<?php 
+                $qarray = explode(".", $line['Quarter']);
+                
+                echo "Q".$qarray[1]." ".$qarray[0]; 
+            ?>
+        </td>
+        </tr>
+        <?php 						
+            	} // end processing results 
+            ?>
+      </tbody>
+    </table>
+  </div>
+  <?php			
+	} // end check that there are results    	
+?>
+  <div class="paginationlinks"><?php echo $paginate->getPaginationLinks(); ?></div>
+  <?php if ($acl->checkPermission('Livestock Production', ACTION_EDIT) && !isEmptyString($request->quarter)) { ?>
+      <div style="width:100%; text-align:center; margin-top:10px;"><a href="<?php echo $this->baseUrl("livestocksector/livestockinfo/quarter/".$request->quarter); ?>" class="positiveaction" title="Update Quarter"><img src="<?php echo $this->baseUrl('images/edit.png'); ?>" />Update Quarter</a>
+      </div>
+  <?php } ?>
+</form>
+<?php
+	$session->setVar(SUCCESS_MESSAGE, "");
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

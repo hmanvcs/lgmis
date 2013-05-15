@@ -1,0 +1,185 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	# Page title
+	$title = $this->translate("locationstatistic_pagetitle_list");
+	$this->headTitle($title);
+	
+	if(!isLGMISAdmin()) {
+		$request->setParam('l'.HTML_TABLE_COLUMN_SEPARATOR.'locationid', $session->getVar('districtid')); 
+		$district = new District();
+		$district->populate($session->getVar('districtid'));
+		$title = $district->getName()." District Statistics";
+	}
+	
+	# Create an instance of the class to handle the pagination
+	$paginate = new Pagination();	
+	$paginate->setView($this);
+	# set the search columns to be used on this list
+	$paginate->setSearchColumns(array("lo.name","ul.name","us.name","s.value"));
+	$paginate->setDefaultSortBy("l.enddate");	
+	$paginate->setDefaultSortOrder("DESC");
+	$paginate->setStartAndEndDateFilterColumn("l.enddate");
+	$paginate->setFilterColumns(array("l.locationid","l.statisticid"));
+
+	$paginate->processPost($request->getParams());
+	$all_results_query = "SELECT l.id, lo.name AS `Location`, DATE_FORMAT(l.startdate, '".$config->dateandtime->mysqlmediumformat."') AS `Start Date`, DATE_FORMAT(l.enddate, '".$config->dateandtime->mysqlmediumformat."') AS `End Date`, YEAR(l.enddate) as `Year`, CONCAT(DATE_FORMAT(l.startdate, '%b %d'),' - ', DATE_FORMAT(l.enddate, '%b %d')) AS `Period`, s.value  as `Statistic`, l.customstat as `Custom Stat`, l.value as `Value`, IF(l.unitid <> '', ul.name, us.name) as `Measure`, l.customunit as `Custom Measure` FROM locationstatistic AS l INNER JOIN location lo ON (l.locationid = lo.id) LEFT JOIN statistic s ON (l.statisticid = s.id) LEFT JOIN commodityunit us ON (s.unitid = us.id) LEFT JOIN commodityunit ul ON (l.unitid = ul.id) WHERE l.id <> '' ".$paginate->getSearchAndFilterSQL()." GROUP BY l.id ".$paginate->getSortSQL();
+
+	// debugMessage($all_results_query);
+	$paginate->setItemCountFromSQLQuery($all_results_query);
+	
+	$current_results_query = $all_results_query." ".$paginate->getSQLLimit();
+	//echo $current_results_query;
+	$session->setVar(ALL_RESULTS_QUERY, $all_results_query);
+	$session->setVar(CURRENT_RESULTS_QUERY, $current_results_query);
+	# the query string to be appended to the return to list URL
+	$session->setVar('list_query_string'.$request->getControllerName(), $request->getParams());
+	
+	$conn = Doctrine_Manager::connection(); 
+	$result = $conn->fetchAll($current_results_query);
+	$has_no_data = (count($result) == 0) ? true : false; 
+	
+	# This variable stores the number of redundant columns returned in the query so that when we are printing
+	# we are able to know how many columns to ignore. This variable is sent in the print URL
+	$number_of_redundant_columns = 1;
+	
+	# the columns which contain numbers in the invoice query
+	# Please note that the column count begins at 0
+	$export_number_column_list = "";	
+?>
+<script>
+$(document).ready(function(){
+	// change the date format since the short format with / corrupts the urls
+	datepickerOpts.dateFormat = '<?php echo $config->dateandtime->javascriptmediumformat; ?>'; 
+	$("#startdate, #enddate").datepicker(datepickerOpts); 
+	$("#statisticsform").validate({
+		errorPlacement: function(error, element) {
+			error.appendTo("#errormessage");
+		},
+		rules: {			
+			enddate: {					
+				enddateafterstartdate: true
+			}				
+		}
+	});
+	
+});
+</script>
+<style>
+select.chzn-select.parameter {
+	min-width:275px;
+}
+</style>
+<form action="<?php echo $this->baseUrl("locationstatistic/listsearch"); ?>" method="get" id="statisticsform">
+  <table class="filtercontainer">
+    <tr>
+      <td>
+      <table class="filtersection">
+         <tr>
+            <td width="40%">From:&nbsp;
+            <input name="startdate"  id="startdate" type="text" class="datefield startdate" value="<?php echo $request->startdate; ?>" /></td>
+            <td>To:&nbsp;
+            <input name="enddate" id="enddate" type="text" class="datefield autosubmitsearchform"  value="<?php echo $request->enddate; ?>" />
+              &nbsp;&nbsp;<br />
+              <div id="errormessage"></div></td>
+         </tr>
+         <tr>
+	         <td colspan="2">
+             <?php if (isLGMISAdmin()) { ?>
+	         	<?php
+					$districtlist = new LookupType(); 
+					$districtlist->setName("AVAILABLE_LGMIS_DISTRICTS");
+					$districtdropdown = new Zend_Form_Element_Select('l'.HTML_TABLE_COLUMN_SEPARATOR.'locationid',
+										array(
+											'multiOptions' => array_merge_maintain_keys(array('' => 'All Districts'), $districtlist->getOptionValuesFromQuery()),								'view' => new Zend_View(),
+											'decorators' => array('ViewHelper'),
+											'class' => array('filterselect', 'chzn-select')
+										)
+									);
+					$districtdropdown->setValue($request->getParam('l'.HTML_TABLE_COLUMN_SEPARATOR.'locationid')); 
+					echo $districtdropdown->render(); 
+				  ?>
+             <?php } ?>&nbsp;&nbsp;
+             <?php
+				$statisticvalues = getAllStatisticValues(); 
+				$statisticvalues = array_merge_maintain_keys(array('' => 'All Parameters'), $statisticvalues);
+				$statisticdropdown = new Zend_Form_Element_Select('l'.HTML_TABLE_COLUMN_SEPARATOR.'statistic',
+									array(
+										'multiOptions' => $statisticvalues,
+										'view' => new Zend_View(),
+										'decorators' => array('ViewHelper'),
+										'class' => array('filterselect', 'chzn-select','parameter')
+									)
+								);
+				$statisticdropdown->setValue($request->getParam('l'.HTML_TABLE_COLUMN_SEPARATOR.'statistic')); 
+				echo $statisticdropdown->render(); 
+			  ?>             	
+	         </td>
+         </tr>
+        </table></td>
+      <td><table>
+          <tr>
+            <td><input class="filterselect" type="text" name="searchterm" id="searchterm" value="<?php echo $request->searchterm; ?>" title="Search statistics" /></td>
+          </tr>
+          <tr>
+            <td><button type="submit" class="positiveaction" id="searchbutton" title="Click here to Search or Filter"><img src="<?php echo $this->baseUrl("images/zoom_in.png"); ?>" alt="Search"/>Search</button></td>
+          </tr>
+        </table></td>
+    </tr>
+  </table>
+  <?php if(isNotAnEmptyString($session->getVar(SUCCESS_MESSAGE))){ ?>
+  <div class="successmessage"><?php echo $session->getVar(SUCCESS_MESSAGE); ?></div>
+  <?php } ?>
+  <?php // show a message that there are no items to display
+	if ($has_no_data) {
+?>
+  <label class="error"><?php echo $this->translate("locationstatistic_list_norecords"); ?></label>
+  <?php } else { ?>
+  <div id="counter"><?php echo sprintf($this->translate("locationstatistic_list_counter"), $paginate->getItemCounterText()); ?></div>
+  <div id="listcounter"><?php echo $this->listcountdropdown; ?></div>
+  <div id="print"><a title="<?php echo $this->translate('global_print_as'); ?>" href="<?php echo $this->baseUrl('index/printerfriendly/'.EXPORT_NUMBER_COLUMN_LIST.'/'.$export_number_column_list.'/'.EXPORT_IGNORE_COLUMN_COUNT.'/'.$number_of_redundant_columns.'/'.PAGE_TITLE.'/'.$title); ?>" target="_blank"><?php echo $this->translate('global_print'); ?>&nbsp;<img src="<?php echo $this->baseUrl('images/printer.png'); ?>" alt="<?php echo $this->translate('global_print_as'); ?>" /></a></div>  
+  <?php if ($acl->checkPermission('Location Statistic', ACTION_EXPORT)) { ?>
+  <div id="export"><a title="<?php echo $this->translate('global_export_as_excel'); ?>" href="<?php echo $this->baseUrl('index/exceldownload/'.EXPORT_NUMBER_COLUMN_LIST.'/'.$export_number_column_list.'/'.EXPORT_IGNORE_COLUMN_COUNT.'/'.$number_of_redundant_columns); ?>" target="_blank"><?php echo $this->translate('global_export_as'); ?>&nbsp;<img src="<?php echo $this->baseUrl('images/excel.png'); ?>" alt="<?php echo $this->translate('global_export_as_excel'); ?>" /></a></div>
+  <?php } ?>
+  <div id="listresults_div">
+    <h2><?php echo $title; ?></h2>
+    <table class="list">
+        <thead>
+            <tr>
+                <td width="15">View</td>
+                <?php if(isLGMISAdmin()) { ?>
+                <td width="15%"><?php echo $paginate->getSortLinkForColumn('l.locationid','District'); ?></td>
+                <?php } ?>
+                <td width="25%"><?php echo $paginate->getSortLinkForColumn('s.value','Statistic'); ?></td>
+                <td width="10%"><?php echo $paginate->getSortLinkForColumn('l.value','Value'); ?></td>
+                <td width="15%"><?php echo $paginate->getSortLinkForColumn('s.name','Measure'); ?></td>
+                <td><?php echo $paginate->getSortLinkForColumn('','Year'); ?></td>
+                <td><?php echo $paginate->getSortLinkForColumn('','Period'); ?></td>
+            </tr>
+        </thead>
+    	<tbody>
+        <?php 				  		
+			foreach($result as $line){							
+		?>
+            <tr>
+                <td class="nowrapping"><a href="<?php echo $this->baseUrl("locationstatistic/view/id/".encode($line['id'])); ?>" title="Manage Details"><img src="<?php echo $this->baseUrl('images/contactview.jpg'); ?>"/></a></td>
+                <?php if (isLGMISAdmin()) { ?>
+                <td class="nowrapping"><?php echo $line['Location']; ?></td>
+                <?php } ?>
+                <td class="nowrapping"><?php echo !isEmptyString($line['Custom Stat']) ? $line['Custom Stat']: $line['Statistic']; ?></td>
+                <td class="nowrapping"><?php echo clean_num($line['Value']); ?></td>
+                <td class="nowrapping"><?php echo !isEmptyString($line['Custom Measure']) ? $line['Custom Measure']: $line['Measure']; ?></td>
+                <td><?php echo $line['Year']; ?></td>
+                <td><?php echo $line['Period']; ?></td>
+            </tr>
+        <?php } ?>
+      	</tbody>
+    </table>
+  </div>
+  <?php	} ?>
+  <div class="paginationlinks"><?php echo $paginate->getPaginationLinks(); ?></div>
+</form>
+<?php
+	$session->setVar(SUCCESS_MESSAGE, "");
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

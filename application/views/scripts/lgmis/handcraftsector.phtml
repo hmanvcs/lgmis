@@ -1,0 +1,142 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	# Page title
+	$location = new District();
+	$location->populate($request->id);	
+	
+	$title = $location->getName()." Handcrafts Production Information";
+	$place = $location->getName();
+	
+	# Page title
+	$this->headTitle($title);
+	
+	# Create an instance of the class to handle the pagination
+	$paginate = new Pagination();
+	$paginate->setView($this);
+	$paginate->setItemCountPerPage(8); 
+	$paginate->processPost($request->getParams());
+	
+	$all_results_query = "SELECT h.id as id, co.id as commodityid, l.name AS `Location`, co.name AS `Commodity`, co.description,hs.market AS `Markets`, h.retail AS `Retail Price`, h.wholesale AS `Wholesale Price`, hs.materialsource AS `Material Source`, hs.materialtype AS `Material Type`, hs.creditsource AS `Source of Credit`, h.wholesale AS `Whole Sale`, h.startdate, h.enddate, co.image as image
+	FROM handcraftproduction AS h 
+	INNER JOIN location l ON (h.locationid = l.id) 
+	INNER JOIN commodity co ON (h.commodityid = co.id)
+	INNER JOIN (SELECT hp.commodityid, MAX(hp.enddate) AS enddate FROM handcraftproduction hp GROUP BY hp.commodityid) AS d ON (d.`enddate` = h.enddate AND d.commodityid = h.commodityid)
+	LEFT JOIN handcraftinformation hs ON (hs.commodityid = h.commodityid )
+	WHERE h.locationid = '".$request->id."' GROUP BY h.commodityid ORDER BY co.name";
+	
+	$paginate->setItemCountFromSQLQuery($all_results_query);
+	
+	$current_results_query = $all_results_query." ".$paginate->getSQLLimit();
+	
+	// debugMessage($current_results_query);
+	
+	$conn = Doctrine_Manager::connection(); 
+	$attr_result = $conn->fetchAll($current_results_query);
+	$has_no_data = (count($attr_result) == 0) ? true : false; 
+?>
+<style>
+#rightcolumn {
+	display:none;
+}
+#contentwrapper {
+	width: 950px;
+	border:solid 1px #CCCCCC;
+	border-top:none;
+	background-color:#FFFFFF;
+	background-image:none;
+}
+#contentleft {
+	min-height:150px;
+	height:auto;
+}
+#contentright {
+	min-height:150px;
+	height:auto;
+}
+table.list tr:hover, table.formtable tbody tr:hover {
+	background:none;
+}
+table.list tbody tr.odd {
+	background: #FFFFFF;
+}
+table.list tr td :hover{
+	background: #F2FAFC;
+}
+</style>
+<div id="lgmiswrapper">
+<?php require_once APPLICATION_PATH.'/views/scripts/lgmis/menu.phtml'; ?>
+	<div id="contentleft" class="globalfont">
+    	<h1 class="pagetitle"><?php echo $title; ?></h1>
+       	<div class="widgetsection height100">
+            <h3><?php echo $this->translate('lgmis_sector_overview'); ?></h3>
+            <label><?php echo isEmptyString($location->getLocationDetail()->getHandcraftSector()) ? 'No information currently available for '.$place : nl2br($location->getLocationDetail()->getHandcraftSector()); ?></label>
+        </div> 
+    </div>
+    <div class="widgetsection height200 globalfont" style="display:block; clear:both;">
+        <h3><?php echo $this->translate('lgmis_sector_information'); ?></h3>
+        <?php if ($has_no_data) { ?>
+            <label class="informationmessage">No information currently available for <?php echo $place; ?></label>
+        <?php } else { ?>
+        	<label class="subtitle">Production Statistics between <?php echo changeMySQLDateToPageFormat($attr_result[0]['startdate'])." and ".changeMySQLDateToPageFormat($attr_result[0]['enddate']); ?></label>
+            
+            <table class="list formtable" style="margin:0; width:100%;">
+				<?php 	
+                    $count = 0; 			  		
+                    foreach($attr_result as $line){	
+                        if ($count % 2 == 0) {
+                            echo "<tr>";
+                        }
+                ?>
+                <td class="nowrapping globalfont" style="width: 45%;">
+                	<div class="listtdwrapper" style="padding:10px;">
+                        <h3 style="margin:5px;"><?php echo $line['Commodity']; ?></h3>
+                        <table style="width:100%;">
+                            <tr>
+                                <td style="border:none; padding:0;">
+								   <?php // if ($validator->isValid($line['commodityid'].'.jpg')) { ?>
+                                        <div class="pubimage" style="width:75%;">
+                                            <img src="<?php echo getCommodityImagePath($line['image'], $line['commodityid']); ?>" class="floatleft commodityimage" style="margin:0 auto; width:100%; max-height:200px;" />
+                                        </div>
+                                    <?php // } ?>
+                                    <!--<b><?php //echo $this->translate("commodity_description_label"); ?>:</b>
+                                    <?php //echo nl2br($line['description']); ?><br>-->
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="border:none; padding:5px;">
+                                    <span class="listdetails"><b><?php echo "Retail Price (Ugx)"; ?>:</b>
+                                    <?php echo formatNumber($line['Retail Price']); ?></span>
+                                    <span class="listdetails"><b><?php echo "Wholesale Price"; ?>:</b>
+                                    <?php echo formatNumber($line['Wholesale Price']); ?></span>
+                                    <span class="listdetails"><b><?php echo $this->translate("handcraft_materialtype_label"); ?>:</b>   
+                                    <?php echo nl2br($line['Material Type']); ?></span>
+                                    <span class="listdetails"><b><?php echo $this->translate("handcraft_materialsource_label"); ?>:</b>
+                                    <?php echo nl2br($line['Material Source']); ?></span>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                    <?php 
+						// do not close for the first row 	
+						if ($count % 2 == 1) {
+							echo "</tr>";
+						}		
+						// increment the counter
+						$count++; 
+                    } // end processing results 
+                    // if the last record is odd then add a blank row
+                    // and close the row 
+                    if ($count % 2 == 1) {
+                        echo "<td></td></tr>";
+                    }	
+                ?>  
+        	</table>
+        <div class="paginationlinks"><?php echo $paginate->getPaginationLinks(); ?></div>
+        <?php } ?>
+    </div>     
+</div>
+<?php
+	$clearsessionformvalues = true; 
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

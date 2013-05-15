@@ -1,0 +1,90 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	$locationdetail = new LocationDetail();
+	$locationdetail->populate(decode($request->id));
+	// default title is to enable adding any payee
+	$title = $locationdetail->getLocation()->getName()." District Info"; 
+	
+	$this->headTitle($title);  
+?>
+<style>
+.ui-widget-content {
+	min-height:350px;
+}
+.ui-tabs .ui-tabs-nav li a {
+	font-weight:normal;
+	font-size:12px;
+}
+</style>
+<div class="pageinfo"><?php echo $this->translate("locationdetail_page_info"); ?></div>
+<?php if(isNotAnEmptyString($session->getVar(SUCCESS_MESSAGE))){ ?>
+<div class="successmessage"><?php echo $session->getVar(SUCCESS_MESSAGE); ?></div>
+<?php } ?>
+<table class="formtable">
+  <tr class="sectionheading">
+    <td><?php echo $title; ?></td>
+  </tr>
+  <tr>
+  	<td>
+    	<div id="tabs">   
+            <ul>
+               <li><a href="#summary"><?php echo $this->translate("locationdetail_summary_label"); ?></a></li>
+               <li><a href="#inputsector"><?php echo $this->translate("locationdetail_agriculturalinputprices_label"); ?></a></li>       
+               <li><a href="#bizsector"><?php echo $this->translate("locationdetail_businesssector_label"); ?></a></li>
+               <li><a href="#toursector"><?php echo $this->translate("locationdetail_tourismsector_label"); ?></a></li>
+               <li><a href="#cropsector"><?php echo $this->translate("locationdetail_cropproduction_label"); ?></a></li>
+               <li><a href="#livestocksector"><?php echo $this->translate("locationdetail_livestockproduction_label"); ?></a></li>
+               <li><a href="#handcraftsector"><?php echo $this->translate("locationdetail_handcraftsector_label"); ?></a></li>
+               <li><a href="#fishsector"><?php echo $this->translate("locationdetail_fishproduction_label"); ?></a></li> 
+               <li><a href="#map"><?php echo /*$this->translate("locationdetail_map_label")*/"Area Map"; ?></a></li>   
+            </ul>
+            <div id="summary">
+            	<?php echo nl2br($locationdetail->getSummary()); ?>
+            </div>
+            <div id="inputsector">
+            	<?php echo nl2br($locationdetail->getAgriculturalInputPrices()); ?>
+            </div>
+            <div id="bizsector">
+            	<?php echo nl2br($locationdetail->getBusinessSector()); ?>
+            </div>
+            <div id="toursector">
+            	<?php echo nl2br($locationdetail->getTourismSector()); ?>
+            </div>
+            <div id="cropsector">
+            	<?php echo nl2br($locationdetail->getCropProduction()); ?>
+            </div>
+            <div id="livestocksector">
+            	<?php echo nl2br($locationdetail->getLivestockProduction()); ?>
+            </div>
+            <div id="handcraftsector">
+            	<?php echo nl2br($locationdetail->getHandcraftSector()); ?>
+            </div>
+            <div id="fishsector">
+            	<?php echo nl2br($locationdetail->getFishProduction()); ?>
+            </div>
+            <div id="map">
+				<?php echo /*$this->translate("commodity_image_label")*/"Image"; ?>:<br />
+                <img src="<?php echo $locationdetail->getImagePath(); ?>" style="max-width:75%;" />
+            </div>
+        </div>
+    </td>
+  </tr>
+</table>
+<table class="formtable formactions">
+  <tfoot>
+        <tr>
+            <td align="center">
+            <?php if ($acl->checkPermission('Location Details', ACTION_EDIT)) { ?>
+            	<a href="<?php echo $this->baseUrl("locationdetail/index/id/".encode($locationdetail->getID())); ?>" class="positiveaction" title="<?php echo $this->translate("locationdetail_button_update"); ?>"><img src="<?php echo $this->baseUrl('images/edit.png'); ?>" /><?php echo $this->translate("locationdetail_button_update"); ?></a>
+            <?php } ?> 
+            <a href="<?php echo $this->baseUrl('locationdetail/list'); ?>" class="positiveaction" title="All Districts"><img src="<?php echo $this->baseUrl('images/arrow_undo.png'); ?>" />All Districts</a>
+            </td>
+        </tr>
+  </tfoot>
+</table>
+<?php
+	$session->setVar(SUCCESS_MESSAGE, "");
+	$clearsessionformvalues = true; 
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

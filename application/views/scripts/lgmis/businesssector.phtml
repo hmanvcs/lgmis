@@ -1,0 +1,246 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	# Page title
+	$title = $this->translate("lgmis_businesssector_pagetitle");
+	$this->headTitle($title);
+	
+	$location = new District();
+	$location->populate($request->id);
+	
+	$request->setParam('c'.HTML_TABLE_COLUMN_SEPARATOR.'locationid', $request->id); 
+	$title = $location->getName()." ".$this->translate("lgmis_businesssector_pagetitle");
+	$place = $location->getName();
+	
+	# Create an instance of the class to handle the pagination
+	$paginate = new Pagination();	
+	$paginate->setView($this);
+	# set the search columns to be used on this list
+	$paginate->setSearchColumns(array("c.firstname", "c.firstname", "c.othernames", "c.orgname", "c.phone", "c.address", "b.name"));
+	$paginate->setFilterColumns(array("c.locationid","g.categoryid", "c.categoryid", "c.contacttype"));
+	$paginate->setDefaultSortBy("c.firstname");	
+	
+	# define the letter to be clicked to ease navigation 
+	$letter_query = "";	
+	if (!isEmptyString($request->letter)){
+		$letter_query = " AND (`c`.`orgname` LIKE '".$request->letter."%' OR `c`.`firstname` LIKE '".$request->letter."%') ";
+	}
+	
+	$paginate->processPost($request->getParams());
+		
+	$all_results_query = "SELECT c.id, c.contacttype, if(contacttype = '1' , CONCAT(c.firstname,' ',c.lastname,' ',c.othernames), c.orgname) as `Name`, if(contacttype = '1' , 'Person','Company') as `Contact Type`, c.categoryid as categoryid, b.name as `Category`, c.phone as `Phone`, c.phone2 as `Alt Phone`, email as `Email`, address as `Address`, c.goodsorservicesoffered, group_concat(b.name separator ',') as `Sub Categories`  FROM contact c LEFT JOIN contactcategory g ON (g.contactid = c.id) LEFT JOIN businessdirectorycategory b ON (c.categoryid = b.id) WHERE c.id <> '' ".$paginate->getSearchAndFilterSQL()." GROUP BY c.id ".$letter_query."".$paginate->getSortSQL();
+	
+	// debugMessage($all_results_query);
+	$paginate->setItemCountFromSQLQuery($all_results_query);
+	
+	$current_results_query = $all_results_query." ".$paginate->getSQLLimit();
+	// echo $current_results_query;
+	$session->setVar(ALL_RESULTS_QUERY, $all_results_query);
+	$session->setVar(CURRENT_RESULTS_QUERY, $current_results_query);
+	# the query string to be appended to the return to list URL
+	$session->setVar('list_query_string'.$request->getControllerName(), $request->getParams());
+	
+	$conn = Doctrine_Manager::connection(); 
+	$businessresult = $conn->fetchAll($current_results_query);
+	$has_no_data = (count($businessresult) == 0) ? true : false; 
+	
+	# This variable stores the number of redundant columns returned in the query so that when we are printing
+	# we are able to know how many columns to ignore. This variable is sent in the print URL
+	$number_of_redundant_columns = 2;
+	
+	# the columns which contain numbers in the invoice query
+	# Please note that the column count begins at 0
+	$export_number_column_list = "";
+?>
+<script>
+	$(document).ready(function(){		
+		// set hidden field for the alphabet and submit the form
+		$(".alphabet").click(function(){
+			var letter = $(this).attr('id');
+			$('input#letter').val(letter);
+			$("#searchbutton").click();
+			return true;
+		});
+		
+	}); 
+</script>
+<style>
+#rightcolumn {
+	display:none;
+}
+#contentwrapper {
+	width: 950px;
+	border:solid 1px #CCCCCC;
+	border-top:none;
+	background-color:#FFFFFF;
+	background-image:none;
+}
+#contentleft {
+	min-height:150px;
+	height:auto;
+}
+#contentright {
+	min-height:150px;
+	height:auto;
+}
+#lgmis table.list ul li {
+    float: left;
+    margin-bottom: 10px;
+	margin-right: 25px; 
+}
+.alphabetlist{
+	text-align: left;
+}
+#lgmis table td h2 {
+    background: url("<?php echo $this->baseUrl('images/report_header_bg.png'); ?>") repeat-x scroll 0 0 transparent;
+    border: medium none;
+    color: #FFFFFF;
+    font-size: 14px;
+    font-weight: bold;
+    height: 30px;
+    margin: 0;
+    padding: 5px 0 0 5px;
+}
+table.list tr td {
+	padding:8px;
+	height:25px;
+}
+</style>
+<div id="lgmiswrapper">
+<?php require_once APPLICATION_PATH.'/views/scripts/lgmis/menu.phtml'; ?>
+	<form action="<?php echo $this->baseUrl("lgmis/businesssectorsearch"); ?>" method="get" id="searchform">
+	<div id="contentleft" class="globalfont">
+    	<h1 class="pagetitle"><?php echo $title; ?></h1>
+       	<div class="widgetsection height100">
+            <h3><?php echo $this->translate('lgmis_sector_overview'); ?></h3>
+            <label><?php echo isEmptyString($location->getLocationDetail()->getBusinessSector()) ? 'No information currently available for '.$place : nl2br($location->getLocationDetail()->getBusinessSector()); ?></label>
+        </div> 
+    </div>
+    <!--<div id="contentright" class="globalfont">
+    	<div class="widgetsection height150">
+        	<h3>TBD</h3>
+        </div>
+   	</div>-->
+    <div class="widgetsection height300 globalfont" style="display:block; clear:both;">
+        <h3><?php echo $place; ?> Business Directory</h3>
+        <table class="filtercontainer">
+            <tr>
+              <td><table class="filtersection">
+                  <tr>
+                    <td colspan="2"><?php
+                        $contacttype = new LookupType();
+                        $contacttype->setName("ALL_CONTACT_TYPES");				
+                        $type = new Zend_Form_Element_Select('c'.HTML_TABLE_COLUMN_SEPARATOR.'contacttype',
+                                        array(
+                                            'multiOptions' => array_merge_maintain_keys(array('' => 'All Types'), $contacttype->getOptionValuesAndDescription()),								
+                                            'view' => new Zend_View(),
+                                            'decorators' => array('ViewHelper'),
+                                            'class' => array("filterselect", 'chzn-select',"autosubmitsearchform"),
+                                            'title' => 'Filter Contacts By Type'
+                                        )
+                                    );
+                        $type->setValue($request->getParam('c'.HTML_TABLE_COLUMN_SEPARATOR.'contacttype')); 				
+                        echo $type->render(); 
+                      ?>
+                      &nbsp;&nbsp;
+                      <?php
+                        # lookup for business categories
+						$categorylookup = new LookupType();
+						$categorylookup->setName("ALL_BUSINESS_DIRECTORY_CATEGORIES");
+						
+						$cat = new Zend_Form_Element_Select('g'.HTML_TABLE_COLUMN_SEPARATOR.'categoryid',
+										array(
+											'multiOptions' => array_merge_maintain_keys(array('' => 'All Categories'), $categorylookup->getOptionValuesFromQuery()),								
+											'view' => new Zend_View(),
+											'decorators' => array('ViewHelper'),
+											'class' => array("filterselect", 'chzn-select'),
+											'title' => 'Filter Contacts By Category'
+										)
+									);
+						$cat->setValue($request->getParam('g'.HTML_TABLE_COLUMN_SEPARATOR.'categoryid')); 				
+						echo $cat->render(); 
+                      ?></td>
+                  </tr>
+                </table></td>
+              <td><table>
+                  <tr>
+                    <td><input type="hidden" name="id" value="<?php echo $request->id; ?>"  /><input class="filterselect" type="text" name="searchterm" id="searchterm" value="<?php echo $request->searchterm; ?>" title="Enter your search term here and click search" /></td>
+                  </tr>
+                  <tr>
+                    <td><button type="submit" class="positiveaction" id="searchbutton" title="Click here to Search or Filter"><img src="<?php echo $this->baseUrl("images/zoom_in.png"); ?>" alt="Search"/>Search</button>
+                    <input type="hidden" name="letter" id="letter" value="<?php echo $request->getParam('letter'); ?>" />
+                    <input type="hidden" name="<?php echo 'c'.HTML_TABLE_COLUMN_SEPARATOR.'locationid'; ?>" id="<?php echo 'c'.HTML_TABLE_COLUMN_SEPARATOR.'locationid'; ?>" value="<?php echo $request->getParam('c'.HTML_TABLE_COLUMN_SEPARATOR.'locationid'); ?>" /></td>
+                  </tr>
+                </table></td>
+            </tr>
+          </table>
+        <?php if ($has_no_data) { ?>
+            <label class="informationmessage">No information currently available for <?php echo $place; ?></label>
+        <?php } else { ?>
+            <div class="alphabetlist"><a href="<?php echo $this->baseUrl("lgmis/businesssector/id/".$request->id); ?>" title="View all the Contacts">All</a>&nbsp;&nbsp;|&nbsp;&nbsp;<?php echo $paginate->getAlphabetString(); ?></div>
+            <div id="counter"><?php echo sprintf($this->translate("contact_list_counter"), $paginate->getItemCounterText()); ?></div>
+            <div id="listcounter"><?php echo $this->listcountdropdown; ?></div>
+            
+            <table style="width:100%; clear:both; display:block;">
+            <?php
+				$count = 0;  
+				foreach($businessresult as $line) { 
+					if ($count % 2 == 0) {
+						echo "<tr>"; 
+					} 
+					$contact = new Contact();
+					$contact->populate($line['id']);
+            ?>
+            	<td vertical-align="top" style="height:200px; width:450px; padding:5px;">
+                    <h2><?php echo $line['Name']; ?></h2>
+                    <table class="list" style="width:100%; margin:0;">
+                        <tbody>
+                            <tr>
+                                <td><b>Phone:</b></td>
+                                <td width="99%"><?php echo $line['Phone']; ?></td>
+                            </tr>
+                            <tr>
+                                <td><b>Address:</b></td>
+                                <td class="nowrapping"><?php echo nl2br($line['Address']); ?></b></td>
+                            </tr>
+                            <tr>
+                                <td><b>Category: </b><br /><br />
+                                <b>Tags: </b>
+                                </td>
+                                <td class="nowrapping">
+                                <?php echo $contact->getCategoryName(); ?></b><br /><br />
+                                <?php echo $contact->getCategoryList(); ?>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="2" class="nowrapping" style="height:90px;"><span style="display:block; margin-bottom:5px;"><b>Goods/Services:</b></span>
+                                <?php echo isEmptyString($line['goodsorservicesoffered']) ? '--' : $line['goodsorservicesoffered']; ?>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+            	</td>
+            	<?php 
+					// do not close for the first row
+					if ($count % 2 == 1) {
+						echo "</tr>";
+					}
+					// increment the counter
+					$count++;
+            	} // end processing results
+				// if the last record is odd then add a blank row
+				// and close the row
+				if ($count % 2 == 1) {
+					echo "<td></td></tr>";
+				} 
+            ?>
+            </table>
+            <div class="paginationlinks"><?php echo $paginate->getPaginationLinks(); ?></div>
+        <?php } ?>
+    </div>
+   	</form>   
+</div>    
+<?php
+	$session->setVar(SUCCESS_MESSAGE, "");
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

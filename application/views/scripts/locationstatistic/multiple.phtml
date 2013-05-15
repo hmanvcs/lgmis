@@ -1,0 +1,382 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	$locationstatistic = new LocationStatistic(); 
+	
+	// default title is to enable adding any payee
+	$title = $this->translate("locationstatistic_pagetitle_multiple_new"); 
+	$posturl = $this->baseUrl("locationstatistic/processmultiple");
+	$button_title = $this->translate("locationstatistic_button_new"); 
+	
+	// set the payee if provided in the url 
+	if (!isEmptyString($request->id)) {
+		$locationstatistic->populate(decode($request->id));
+		$title = sprintf($this->translate("locationstatistic_pagetitle_edit"), $locationstatistic->getLocationID()); 
+		$button_title = $this->translate("global_button_save_changes");
+		$posturl = $this->baseUrl("locationstatistic/editmultiple"); 
+	}
+	if(isLGMISOfficial()) {
+		$district = new District();
+		$district->populate($session->getVar('districtid'));
+		$locationstatistic->setLocationID($district->getID());
+		$title = "New ".$district->getName()." District Statistics";
+	}
+	
+	#in case of errors in session, populate the fields from session
+	if(!isEmptyString($session->getVar(ERROR_MESSAGE))){ 
+		$locationstatistic->processPost($session->getVar(FORM_VALUES));	
+	}
+	
+	$this->headTitle($title);  
+	
+	// statistic lookup type which does not need to be re-run for each loop
+	$statisticvalues = getAllStatisticValues(); 
+	$statisticvalues = array_merge_maintain_keys(array('' => 'Select Parameter'), $statisticvalues);
+	
+	$unitvalues = getAllStatisticUnits(); 
+	$unitvalues = array_merge_maintain_keys(array('' => 'Select Measure'), $unitvalues);
+?>
+<script>
+	$(document).ready(function() {
+		// configure the date picker not to accept dates after today
+		// datepickerOpts.maxDate = new Date();   
+		$("#startdate, #enddate").datepicker(datepickerOpts);
+		
+		$("#multiplelocationstatisticform").validate({		
+			// define the validation rules one field at a time
+			rules: {
+				locationid: "required",
+				startdate: "required",
+				enddate: {
+					required: true,
+					enddateafterstartdate: true
+				}
+			}, 
+			// the messages for each of the fields being validated
+			messages: {				
+				locationid: "<?php echo $this->translate("locationstatistic_location_error"); ?>",
+				startdate: "<?php echo $this->translate("locationstatistic_startdate_error"); ?>",
+				enddate: {
+					required: "<?php echo $this->translate("locationstatistic_enddate_error"); ?>"						
+				}
+			},
+			// custom error positions
+			errorPlacement: function(error, element) {
+				switch(element.attr("name")){					
+					case 'locationid':
+						error.appendTo("#locationid_error");
+						break;	
+					case 'startdate':
+						error.appendTo("#startdate_error");
+						break;	
+					case 'enddate':
+						error.appendTo("#enddate_error");
+						break;
+					<?php for($v = 1; $v <= $config->locationstatistic->maximumrows; $v++) { ?>						
+						case 'statisticid_<?php echo $v; ?>':
+							error.appendTo("#statisticid_error_<?php echo $v; ?>")
+							break;
+						case 'customstat_<?php echo $v; ?>':
+							error.appendTo("#statisticid_error_<?php echo $v; ?>")
+							break;
+						case 'measure_<?php echo $v; ?>':
+							error.appendTo("#measure_error_<?php echo $v; ?>")
+							break;
+						case 'value_<?php echo $v; ?>':
+							error.appendTo("#value_error_<?php echo $v; ?>")
+							break;
+					<?php } ?>
+					default:
+						error.insertAfter(element);
+						break;
+				}			
+			}
+		});
+		
+		// when a user clicks add new display the first hidden firm which is not shown
+		$("#addrow").click(showNewRule);		
+		function showNewRule() {					
+			$(".hidden_row:first").removeClass("hidden_row").addClass("visible_row");
+			// remove disabled attr from the fields
+			$("tr.visible_row input").attr("disabled", false);
+			$("tr.visible_row select").attr("disabled", false);	
+					
+			// hide or show add button
+			hideShowAdd();		
+			// reset height of content column
+			// resizeContentForm();
+			// recompute total time spent
+			$('select.timesheet').change();
+		}
+			
+		// delete a row
+		$(".remove").click(function(){			
+			var row_to_hide = $(this).attr('id');
+			if(window.confirm("Are you sure you want to remove this row? \n Click 'OK' to confirm or 'Cancel' to stay on this page.")){
+				// $("tr."+row_to_hide).addClass("hidden_row").removeClass("visible_row");
+				$("tr."+row_to_hide).fadeOut('slow', function(){ $(this).addClass("hidden_row").removeClass("visible_row"); });
+				// $("input, select").attr("disabled", true);	
+				$("tr."+row_to_hide+" input, tr."+row_to_hide+" select, tr."+row_to_hide+" textarea").val('').attr("disabled", true);
+				// revalidate the hidden field
+				$("form#multiplelocationstatisticform").validate().element("tr."+row_to_hide+" select");
+				$("form#multiplelocationstatisticform").validate().element("tr."+row_to_hide+" textarea");
+				// hide or show add button
+				hideShowAdd();
+			
+			} else {
+				return false;
+			}
+		});	
+		
+		//if the maximum no of rows is added, hide the link to add another row
+		function hideShowAdd(){
+			//if the maximum no of rows is added, hide the link to add another row
+			var maxrows = '<?php echo $config->locationstatistic->maximumrows; ?>';
+			if ($("tr.visible_row").size() == maxrows) {
+				$("#addrow").hide();
+			} else {
+				$("#addrow").show();			
+			}			
+		}
+		
+		// show hide custom field for custom statustic parameter
+		$(".customstat").attr('disabled', true);
+		$(".customstattrigger").click(function(){
+			var id = $("input."+$(this).attr('id')).val();
+			// alert(id);
+			if($(this).is(':checked')) {
+				// alert($(this).val());
+				$("#customstat_"+id).show().attr('disabled', false);
+				$("#statisticid_"+id+"_chzn").hide().attr('disabled', true);
+				$("#statisticid_"+id).attr('disabled', true);
+				$(this).attr('title',"Use Preset Parameter");
+			} else {
+				$("#customstat_"+id).hide().attr('disabled', true);
+				$("#statisticid_"+id+"_chzn").show().attr('disabled', false);
+				$("#statisticid_"+id).attr('disabled', false);
+				$(this).attr('title',"Use Custom Parameter");
+			}
+		});
+		
+		$(".customunit").attr('disabled', true);
+		$(".customunittrigger").click(function(){
+			var id = $("input."+$(this).attr('id')).val();
+			// alert(id);
+			if($(this).is(':checked')) {
+				// alert($(this).val());
+				$("#customunit_"+id).show().attr('disabled', false);
+				$("#unit_"+id+"_chzn").hide().attr('disabled', true);
+				$("#unit_"+id).attr('disabled', true);
+				$(this).attr('title',"Use Preset Measure");
+			} else {
+				$("#customunit_"+id).hide().attr('disabled', true);
+				$("#unit_"+id+"_chzn").show().attr('disabled', false);
+				$("#unit_"+id).attr('disabled', false);
+				$(this).attr('title',"Use Custom Measure");
+			}
+		});
+	});
+</script>
+<style>
+table.formtable tr td, table.formtable tr td.label {
+	vertical-align:middle;
+}
+input.smallnumberfield {
+	width:140px;
+}
+select.chzn-select.parameter {
+	width:215px;
+}
+select.chzn-select.unit {
+	min-width:140px;
+}
+input.customstat {
+	display:none;
+	width:205px;
+	height:20px;
+	font-size:12px;
+	font-weight:normal;
+}
+input.customunit {
+	display:none;
+	width:170px;
+	height:20px;
+	font-size:12px;
+	font-weight:normal;
+}
+</style>
+<div class="pageinfo"><?php echo $this->translate("locationstatistic_multiple_page_info"); ?></div>
+<form id="multiplelocationstatisticform" action="<?php echo $posturl; ?>" method="post">
+<?php if ($sessionhaserror) { ?>
+	<label class="error"><?php echo $session->getVar(ERROR_MESSAGE); ?></label>
+<?php } ?>    
+<table class="formtable">
+    <tr class="sectionheading">
+      <td colspan="2"><?php echo $title; ?></td>
+    </tr>
+    <?php if(isLGMISAdmin()) { ?>
+    <tr>
+      <td class="label"><?php echo $this->translate("locationstatistic_locationid_label"); ?>:<?php echo $this->translate("required_field_marker"); ?></td>
+      <td>
+	  	<?php
+			$districtlist = new LookupType(); 
+			$districtlist->setName("AVAILABLE_LGMIS_DISTRICTS");
+			$districtdropdown = new Zend_Form_Element_Select('locationid',
+								array(
+									'multiOptions' => array_merge_maintain_keys(array('' => '<Select District>'), $districtlist->getOptionValuesFromQuery()),								
+									'view' => new Zend_View(),
+									'decorators' => array('ViewHelper'),
+									'class' => array("filterselect", 'chzn-select'),
+								)
+							);
+			$districtdropdown->setValue($locationstatistic->getLocationID()); 
+			echo $districtdropdown->render(); 
+		  ?><div id="locationid_error"></div>
+          </td>
+    </tr>
+    <?php } else { ?>
+	    <input type="hidden" id="locationid" name="locationid" value="<?php echo $locationstatistic->getLocationID(); ?>" />
+    <?php } ?>
+    <tr>
+      <td class="label" style="width:200px;"><?php echo $this->translate("locationstatistic_startdate_label"); ?>: <?php echo $this->translate("required_field_marker"); ?></td>
+      <td><input name="startdate" id="startdate" class="datefield startdate" type="text" value="<?php echo changemySQlDatetoPageFormat($locationstatistic->getStartDate()); ?>" /><div id="startdate_error"></div></td>
+    </tr>
+    <tr>
+      <td class="label"><?php echo $this->translate("locationstatistic_enddate_label"); ?>: <?php echo $this->translate("required_field_marker"); ?></td>
+      <td><input name="enddate" id="enddate" class="datefield" type="text" value="<?php echo changemySQlDatetoPageFormat($locationstatistic->getEndDate()); ?>" /><div id="enddate_error"></div></td>
+    </tr>
+</table>
+<table class="formtable logisticdetails">
+    <tr>
+      <td class="label"><?php echo $this->translate("locationstatistic_statistic_label"); ?>:<?php echo $this->translate("required_field_marker"); ?></td>
+      <td class="label" style="width:120px;"><?php echo $this->translate("locationstatistic_measure_label"); ?></td>
+      <td class="label" style="width:120px;"><?php echo $this->translate("locationstatistic_value_label"); ?></td>
+      <td class="label" style="width:10px;"></td>
+    </tr>
+    <?php 
+		//$e = 1;
+		$def_rows = $config->locationstatistic->rowsdisplayedfornew;
+		//$max_rows = 5;
+		for($e = 1; $e <= $def_rows; $e++) {
+		$class = "visible_row";
+	?>
+        <tr class="<?php echo $class;?> remove_<?php echo $e; ?>">
+          <td>
+          	<div style="position:relative;">
+				<?php
+                    $statisticropdown = new Zend_Form_Element_Select('statisticid_'.$e,
+                                        array(
+                                            'multiOptions' => $statisticvalues,								
+                                            'view' => new Zend_View(),
+                                            'decorators' => array('ViewHelper'),
+                                            'class' => array("filterselect", 'chzn-select', 'parameter', "{required:'#value_".$e.":filled', messages: {required: '".$this->translate("locationstatistic_statistic_error")."'}}"),
+                                        )
+                                    );
+                    $statisticropdown->setValue(''); 
+                    echo $statisticropdown->render(); 
+                  ?>
+                  <input type="text" name="customstat_<?php echo $e; ?>" id="customstat_<?php echo $e; ?>" value="" class="customstat <?php echo "{required:'#value_".$e.":filled', messages: {required: '".$this->translate("locationstatistic_customstat_error")."'}}"; ?>" />
+                  <input style="position:absolute; right:2px; top:0;" type="checkbox" name="customstattrigger_<?php echo $e; ?>" id="customstattrigger_<?php echo $e; ?>" class="customstattrigger" value="1" />
+                  <input type="hidden" name="line_<?php echo $e; ?>" id="line_<?php echo $e; ?>" value="<?php echo $e; ?>" class="customstattrigger_<?php echo $e; ?> customstat_<?php echo $e; ?>" />
+              </div>
+              <div id="statisticid_error_<?php echo $e; ?>"></div>
+          </td>
+          <td>
+		  <div style="position:relative;">
+		  	<?php
+                $unitdropdown = new Zend_Form_Element_Select('unit_'.$e,
+                                    array(
+                                        'multiOptions' => $unitvalues,								
+                                        'view' => new Zend_View(),
+                                        'decorators' => array('ViewHelper'),
+                                        'class' => array("filterselect", 'chzn-select', 'unit', "{required:'#value_".$e.":filled', messages: {required: '".$this->translate("locationstatistic_measure_error")."'}}"),
+                                    )
+                                );
+                $unitdropdown->setValue('16'); 
+                echo $unitdropdown->render(); 
+              ?>
+               	  <input type="text" name="customunit_<?php echo $e; ?>" id="customunit_<?php echo $e; ?>" value="" class="customunit <?php echo "{required:'#value_".$e.":filled', messages: {required: '".$this->translate("locationstatistic_customunit_error")."'}}"; ?>" />
+                  <input style="position:absolute; right:2px; top:0;" type="checkbox" name="customunittrigger_<?php echo $e; ?>" id="customunittrigger_<?php echo $e; ?>" class="customunittrigger" value="1" />
+                  <input type="hidden" name="line_<?php echo $e; ?>" id="line_<?php echo $e; ?>" value="<?php echo $e; ?>" class="customunittrigger_<?php echo $e; ?> customunit_<?php echo $e; ?>" />
+              </div>
+              <div id="measure_error_<?php echo $e; ?>"></div>
+          </td>
+          <td><input type="text" name="value_<?php echo $e; ?>" id="value_<?php echo $e; ?>" value="" class="smallnumberfield {number:true, required:<?php echo "'#statisticid_".$e.":filled'"; ?>, messages: {required: '<?php echo $this->translate("locationstatistic_statistic_value_error"); ?>'}}" />
+          	<div id="value_error_<?php echo $e; ?>"></div>
+          </td>
+          <td><a href="javascript: doNothing();" title="Remove" class="remove" id="remove_<?php echo $e; ?>"><img src="<?php echo $this->baseUrl("images/cross.png"); ?>" align="Remove" /></a> </td>
+        </tr>
+    <?php } ?>
+    <?php       
+		$max_rows = $config->locationstatistic->maximumrows;           
+		//continue adding more more rows after displaying the exiting details
+		for($r = $e; $r <= $max_rows; $r++) {
+			$class = "visible_row" ;
+			if($r > $def_rows){
+				$class = "hidden_row";
+			} 
+	?>
+    <tr class="<?php echo $class;?> remove_<?php echo $r; ?>">
+    	<td>
+          	<div style="position:relative;">
+				<?php
+                    $statisticropdown = new Zend_Form_Element_Select('statisticid_'.$r,
+                                        array(
+                                            'multiOptions' => $statisticvalues,								
+                                            'view' => new Zend_View(),
+                                            'decorators' => array('ViewHelper'),
+                                            'class' => array("filterselect", 'chzn-select', 'parameter', "{required:'#value_".$r.":filled', messages: {required: '".$this->translate("locationstatistic_statistic_error")."'}}"),
+                                        )
+                                    );
+                    $statisticropdown->setValue(''); 
+                    echo $statisticropdown->render(); 
+                  ?>
+                  <input type="text" name="customstat_<?php echo $r; ?>" id="customstat_<?php echo $r; ?>" value="" class="customstat <?php echo "{required:'#value_".$r.":filled', messages: {required: '".$this->translate("locationstatistic_customstat_error")."'}}"; ?>" />
+                  <input style="position:absolute; right:2px; top:0;" type="checkbox" name="customstattrigger_<?php echo $r; ?>" id="customstattrigger_<?php echo $r; ?>" class="customstattrigger" value="1" />
+                  <input type="hidden" name="line_<?php echo $r; ?>" id="line_<?php echo $r; ?>" value="<?php echo $r; ?>" class="customstattrigger_<?php echo $r; ?> customstat_<?php echo $r; ?>" />
+              </div>
+              <div id="statisticid_error_<?php echo $r; ?>"></div>
+          </td>
+          <td>
+		  <div style="position:relative;">
+		  	<?php
+                $unitdropdown = new Zend_Form_Element_Select('unit_'.$r,
+                                    array(
+                                        'multiOptions' => $unitvalues,								
+                                        'view' => new Zend_View(),
+                                        'decorators' => array('ViewHelper'),
+                                        'class' => array("filterselect", 'chzn-select', 'unit', "{required:'#value_".$r.":filled', messages: {required: '".$this->translate("locationstatistic_measure_error")."'}}"),
+                                    )
+                                );
+                $unitdropdown->setValue('16'); 
+                echo $unitdropdown->render(); 
+              ?>
+               	  <input type="text" name="customunit_<?php echo $r; ?>" id="customunit_<?php echo $r; ?>" value="" class="customunit <?php echo "{required:'#value_".$r.":filled', messages: {required: '".$this->translate("locationstatistic_customunit_error")."'}}"; ?>" />
+                  <input style="position:absolute; right:2px; top:0;" type="checkbox" name="customunittrigger_<?php echo $r; ?>" id="customunittrigger_<?php echo $r; ?>" class="customunittrigger" value="1" />
+                  <input type="hidden" name="line_<?php echo $r; ?>" id="line_<?php echo $r; ?>" value="<?php echo $r; ?>" class="customunittrigger_<?php echo $r; ?> customunit_<?php echo $r; ?>" />
+              </div>
+              <div id="measure_error_<?php echo $r; ?>"></div>
+          </td>
+          <td><input type="text" name="value_<?php echo $r; ?>" id="value_<?php echo $r; ?>" value="" class="smallnumberfield {number:true, required:<?php echo "'#statisticid_".$r.":filled'"; ?>, messages: {required: '<?php echo $this->translate("locationstatistic_statistic_value_error"); ?>'}}" />
+          	<div id="value_error_<?php echo $r; ?>"></div>
+          </td>
+          <td><a href="javascript: doNothing();" title="Remove" class="remove" id="remove_<?php echo $r; ?>"><img src="<?php echo $this->baseUrl("images/cross.png"); ?>" align="Remove" /></a> </td>
+    </tr>
+    <?php } ?>
+</table>    
+<table class="formtable formactions">
+    <tfoot>
+        <tr>
+            <td><a href="<?php echo $this->baseUrl("dataentry"); ?>" title="Cancel">Cancel</a>&nbsp;&nbsp; 
+            	<a href="javascript: doNothing();" id="addrow" class="positiveaction" title="<?php echo $this->translate("locationstatistic_button_addrow_label"); ?>"><img src="<?php echo $this->baseUrl("images/add.png"); ?>" /><?php echo $this->translate("locationstatistic_button_addrow_label"); ?></a>&nbsp;&nbsp;
+              	<button type="submit" class="positiveaction" id="submit" name="submit"><img src="<?php echo $this->baseUrl("images/tick.png"); ?>" /><?php echo $button_title; ?></button>
+              <input type="hidden" name="counter" value="<?php echo $config->locationstatistic->maximumrows;?>" />
+			</td>
+        </tr>
+    </tfoot>
+</table>
+</form>
+<?php
+	$clearsessionformvalues = true; 
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

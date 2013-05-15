@@ -1,0 +1,161 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	# Page title
+	$location = new District();
+	$location->populate($request->id);	
+	
+	$title = $location->getName()." Livestock Production Information";
+	$place = $location->getName();
+	# Page title
+	$this->headTitle($title);
+	
+	# Create an instance of the class to handle the pagination
+	$paginate = new Pagination();
+	$paginate->setView($this);
+	$paginate->setItemCountPerPage(8); 
+	$paginate->processPost($request->getParams());
+
+	$all_results_query = "SELECT ls.commodityid, ls.id, l.name AS `Location`, co.name AS `Commodity`, co.description, li.breedsource AS `Source of Breeds`, ls.cost AS `Cost of Breeds`, li.pests AS `Pests`, li.diseases AS `Diseases`, li.creditsource AS `Source of Credit`, ls.yield AS `Yield`, ls.startdate, ls.enddate, ls.prodtype as `prodtype`, ls.unitid as `unitid`, cu.name as `theunit`, ls.yieldtype as `yieldtype`, ls.customprodtype as `customprodtype`, ls.customunit as `customunit`, ls.customyieldtype as `customyield`
+FROM livestockproduction AS ls 
+INNER JOIN location l ON (ls.locationid = l.id) 
+INNER JOIN commodity co ON (ls.commodityid = co.id) 
+LEFT JOIN commodityunit as cu on (ls.unitid = cu.id)
+INNER JOIN (SELECT lp.commodityid, MAX(lp.enddate) AS enddate FROM livestockproduction lp WHERE lp.locationid = '".$request->id."' GROUP BY lp.commodityid) AS d ON (d.`enddate` = ls.enddate AND d.commodityid = ls.commodityid)
+LEFT JOIN livestockinformation li ON (ls.commodityid = li.commodityid AND ls.quarter = li.quarter AND li.locationid = '".$request->id."')
+WHERE ls.locationid = '".$request->id."' GROUP BY ls.commodityid ORDER BY co.name";
+
+    $paginate->setItemCountFromSQLQuery($all_results_query);
+	
+	$current_results_query = $all_results_query." ".$paginate->getSQLLimit();
+	
+	// debugMessage($current_results_query);
+	
+	$conn = Doctrine_Manager::connection(); 
+	$attr_result = $conn->fetchAll($current_results_query);
+	$has_no_data = (count($attr_result) == 0) ? true : false; 
+	
+	# This variable stores the number of redundant columns returned in the query so that when we are printing
+	# we are able to know how many columns to ignore. This variable is sent in the print URL
+	$number_of_redundant_columns = 1;
+	
+	# the columns which contain numbers in the invoice query
+	# Please note that the column count begins at 0
+	$export_number_column_list = "";
+	
+?>
+<style>
+#rightcolumn {
+	display:none;
+}
+#contentwrapper {
+	width: 950px;
+	border:solid 1px #CCCCCC;
+	border-top:none;
+	background-color:#FFFFFF;
+	background-image:none;
+}
+#contentleft {
+	min-height:150px;
+	height:auto;
+}
+#contentright {
+	min-height:150px;
+	height:auto;
+}
+table.list tr:hover, table.formtable tbody tr:hover {
+	background:none;
+}
+table.list tbody tr.odd {
+	background: #FFFFFF;
+}
+table.list tr td :hover{
+	background: #F2FAFC;
+}
+</style>
+<div id="lgmiswrapper">
+<?php require_once APPLICATION_PATH.'/views/scripts/lgmis/menu.phtml'; ?>
+	<div id="contentleft" class="globalfont">
+    	<h1 class="pagetitle"><?php echo $title; ?></h1>
+       	<div class="widgetsection height100">
+            <h3><?php echo $this->translate('lgmis_sector_overview'); ?></h3>
+            <label><?php echo isEmptyString($location->getLocationDetail()->getLivestockProduction()) ? 'No information currently available for '.$place : nl2br($location->getLocationDetail()->getLivestockProduction()); ?></label>
+        </div> 
+    </div>
+    <!--<div id="contentright" class="globalfont">
+    	<div class="widgetsection height150">
+        	<h3>TBD</h3>
+        </div>
+   	</div>-->
+    <div class="widgetsection height200 globalfont" style="display:block; clear:both;">
+        <h3><?php echo $this->translate('lgmis_sector_information'); ?></h3>
+        <?php if ($has_no_data) { ?>
+            <label class="informationmessage">No information currently available for <?php echo $place; ?></label>
+        <?php } else { ?>
+        	<label class="subtitle">Production Statistics between <?php echo changeMySQLDateToPageFormat($attr_result[0]['startdate'])." and ".changeMySQLDateToPageFormat($attr_result[0]['enddate']); ?></label>
+            
+            <table class="list formtable" style="margin:0; width:100%;">
+			<?php 	
+                    $validator = new Zend_Validate_File_Exists(); 
+                    $validator->setDirectory(APPLICATION_PATH.('/../public/uploads/commodity')); 
+                    
+                    $count = 0; 			  		
+                    foreach($attr_result as $line){	
+                        if ($count % 2 == 0) {
+                            echo "<tr>";
+                        }
+                ?>
+                <td class="nowrapping globalfont" style="width: 45%;">
+                	<div class="listtdwrapper" style="padding:10px;">
+                        <h3 style="margin:5px;"><?php echo $line['Commodity']; ?></h3>
+                        <table style="width:100%;">
+                            <tr>
+                                <td style="border:none; padding:0;">
+                                    
+                                       <?php if ($validator->isValid($line['commodityid'].'.jpg')) { ?>
+                                            <img src="<?php echo $this->baseUrl('uploads/commodity/'.$line['commodityid'].'.jpg'); ?>" class="floatleft commodityimage" style="margin-right: 10px;" />
+                                        <?php } ?>
+                                    <!--<b><?php //echo $this->translate("commodity_description_label"); ?>:</b>
+                                    <?php //echo nl2br($line['description']); ?><br>-->
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="border:none; padding:5px;">
+                                    <span class="listdetails"><b><?php echo "Output"; ?>:</b>
+                                    <?php echo !isEmptyString($line['customprodtype']) ? $line['customprodtype'] : $line['prodtype']; ?></span>
+                                    <span class="listdetails"><b><?php echo "Cost (Ugx)"; ?>:</b>
+                                    <?php echo formatNumber($line['Cost of Breeds']); ?></span>
+                                    <span class="listdetails"><b><?php echo "Source"; ?>:</b>   
+                                    <?php echo nl2br($line['Source of Breeds']); ?></span>
+                                    <span class="listdetails"><b><?php echo $this->translate("livestocksector_pests_label"); ?>:</b>
+                                    <?php echo nl2br($line['Pests']); ?></span>
+                                    <span class="listdetails"><b><?php echo $this->translate("livestocksector_diseases_label"); ?>:</b>
+                                    <?php echo nl2br($line['Diseases']); ?></span>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    </td>
+                    <?php 
+						// do not close for the first row 	
+						if ($count % 2 == 1) {
+							echo "</tr>";
+						}		
+						// increment the counter
+						$count++; 
+                    } // end processing results 
+                    // if the last record is odd then add a blank row
+                    // and close the row 
+                    if ($count % 2 == 1) {
+                        echo "<td></td></tr>";
+                    }	
+                ?>  
+        	</table>
+        <div class="paginationlinks"><?php echo $paginate->getPaginationLinks(); ?></div>
+        <?php } ?>
+    </div>     
+</div>
+<?php
+	$clearsessionformvalues = true; 
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

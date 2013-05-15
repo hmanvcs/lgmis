@@ -1,0 +1,167 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	# Page title
+	$location = new District();
+	$location->populate($request->id);	
+	
+	$title = $location->getName()." Tourism Information";
+	$place = $location->getName();
+	
+	# Page title
+	$this->headTitle($title);
+	
+	# Create an instance of the class to handle the pagination
+	$paginate = new Pagination();
+	$paginate->setView($this);
+	# set the search columns to be used on this list
+	$paginate->setSearchColumns(array("t.name", "t.physicallocation", "t.contact", "t.touristattractions", "t.accomodation","t.entertainment","t.tourpackages"));
+	// $paginate->setFilterColumns(array());
+	$paginate->setDefaultSortBy("t.name");	
+	$paginate->setItemCountPerPage(1); 
+	
+	$paginate->processPost($request->getParams());
+		
+	$all_results_query = "SELECT t.id AS touristattractionid, t.name AS `Name`, t.physicallocation AS `Physical Location`, t.contact AS `Contact`, sc.name AS `Sub-County`, t.touristattractions AS `Tourist Attractions`, t.priceoffers AS `Price Offers`, t.accomodation AS `Accomodation`, t.entertainment AS `Entertainment`, t.transport AS `Transport`, t.booking AS `Booking`, t.tourpackages AS `Tour Packages`, t.otherservices AS `Other Services`, d.name as District, t.image  FROM touristattraction AS t LEFT JOIN location sc ON t.subcountyid = sc.id INNER JOIN location d  WHERE t.districtid = '".$request->id."'GROUP BY t.id ORDER BY t.name";
+	// debugMessage($all_results_query);
+	
+	$paginate->setItemCountFromSQLQuery($all_results_query);
+	
+	$current_results_query = $all_results_query." ".$paginate->getSQLLimit();
+	// echo $current_results_query;
+	$session->setVar(ALL_RESULTS_QUERY, $all_results_query);
+	$session->setVar(CURRENT_RESULTS_QUERY, $current_results_query);
+	# the query string to be appended to the return to list URL
+	$session->setVar('list_query_string'.$request->getControllerName(), $request->getParams());
+	
+	$conn = Doctrine_Manager::connection(); 
+	$attr_result = $conn->fetchAll($all_results_query);
+	$has_no_data = (count($attr_result) == 0) ? true : false; 
+	
+?>
+<style>
+#rightcolumn {
+	display:none;
+}
+#contentwrapper {
+	width: 950px;
+	border:solid 1px #CCCCCC;
+	border-top:none;
+	background-color:#FFFFFF;
+	background-image:none;
+}
+#contentleft {
+	min-height:150px;
+	height:auto;
+}
+#contentright {
+	min-height:150px;
+	height:auto;
+}
+table.list tr:hover, table.formtable tbody tr:hover {
+	background:none;
+}
+table.list tbody tr.odd {
+	background: #FFFFFF;
+}
+table.list tr td :hover{
+	background: #F2FAFC;
+}
+</style>
+<div id="lgmiswrapper">
+<?php require_once APPLICATION_PATH.'/views/scripts/lgmis/menu.phtml'; ?>
+	<form action="<?php echo $this->baseUrl("lgmis/touristattractionsearch"); ?>" method="get" id="searchform">
+	<div id="contentleft" class="globalfont">
+    	<h1 class="pagetitle"><?php echo $title; ?></h1>
+       	<div class="widgetsection height100">
+            <h3><?php echo $this->translate('lgmis_sector_overview'); ?></h3>
+            <label><?php echo isEmptyString($location->getLocationDetail()->getTourismSector()) ? 'No information currently available for '.$place : nl2br($location->getLocationDetail()->getTourismSector()); ?></label>
+        </div> 
+    </div>
+    <div class="widgetsection height200 globalfont" style="display:block; clear:both;">
+        <h3><?php echo /*$this->translate('lgmis_sector_information')*/"Tourist Attraction Sites"; ?></h3>
+        <table class="filtercontainer">
+            <tr>
+              <td><table class="filtersection">
+                  <tr>
+                    <td colspan="2"></td>
+                  </tr>
+                </table></td>
+              <td><table>
+                  <tr>
+                    <td><input type="hidden" name="id" value="<?php echo $request->id; ?>"  /><input class="filterselect" type="text" name="searchterm" id="searchterm" value="<?php echo $request->searchterm; ?>" title="Enter your search term here and click search" /></td>
+                  </tr>
+                  <tr>
+                    <td><button type="submit" class="positiveaction" id="searchbutton" title="Click here to Search or Filter"><img src="<?php echo $this->baseUrl("images/zoom_in.png"); ?>" alt="Search"/>Search</button>
+                    <input type="hidden" name="letter" id="letter" value="<?php echo $request->getParam('letter'); ?>" /></td>
+                  </tr>
+                </table></td>
+            </tr>
+          </table>
+		<?php if ($has_no_data) { ?>
+            <label class="informationmessage">No information currently available for <?php echo $place; ?></label>
+        <?php } else { ?>
+        	<div id="counter"><?php echo sprintf($this->translate("touristattraction_list_counter"), $paginate->getItemCounterText()); ?></div>
+            <div id="listcounter"><?php echo $this->listcountdropdown; ?></div>
+            <table class="list formtable" style="margin:0; width:100%;">
+				<?php 	
+                    $count = 0; 			  		
+                    foreach($attr_result as $line){	
+                        if ($count % 2 == 0) {
+                            echo "<tr>";
+                        }
+                ?>
+                <td class="nowrapping globalfont" style="width: 50%; max-height:200px;">
+                	<div class="listtdwrapper" style="padding:10px;">
+                	<h3 style="margin:5px;"><?php echo $line['Name']; ?></h3>
+                    <div class="pubimage">
+                        <img src="<?php echo getTourismImagePath($line['image'], $line['touristattractionid']); ?>" class="floatleft vcommodityimage" style="margin:0 auto; width:200px; max-height:200px;" />
+                    </div>
+                 	<label class="publabel"><?php echo $this->translate("touristattraction_subcounty_label"); ?>:</label>
+					<?php echo isEmptyString($line['Sub-County']) ? '--' : $line['Sub-County']; ?><br><br>
+                    <label class="publabel"><?php echo /*$this->translate("touristattraction_physical_location_label")*/"Address"; ?>:</label>
+                    <?php echo isEmptyString($line['Physical Location']) ? '--' : $line['Physical Location']; ?><br><br>
+                    <label class="publabel"><?php echo $this->translate("touristattraction_contact_location_label"); ?>:</label>
+                    <?php echo isEmptyString($line['Contact']) ? '--' : $line['Contact']; ?><br><br>
+                    <label class="publabel"><?php echo $this->translate("touristattraction_tourist_attractions_label"); ?>:</label>
+                    <label style="display:block;"><?php echo isEmptyString($line['Tourist Attractions']) ? '--' : nl2br($line['Tourist Attractions']); ?></label><br /><br /><br />
+                    <label class="publabel"><?php echo $this->translate("touristattraction_price_offers_label"); ?>:</label>
+                    <?php echo isEmptyString($line['Price Offers']) ? '--' : $line['Price Offers']; ?><br><br>
+                    <label class="publabel"><?php echo $this->translate("touristattraction_accomodation_label"); ?>:</label>
+                    <?php echo isEmptyString($line['Accomodation']) ? '--' : nl2br($line['Accomodation']); ?><br><br>
+                    <label class="publabel"><?php echo $this->translate("touristattraction_entertainment_label"); ?>:</label>
+                    <?php echo isEmptyString($line['Entertainment']) ? '--' : nl2br($line['Entertainment']); ?><br><br>
+                    <label class="publabel"><?php echo $this->translate("touristattraction_transport_label"); ?>:</label>
+                    <?php echo isEmptyString($line['Transport']) ? '--' : nl2br($line['Transport']); ?><br><br>
+                    <label class="publabel"><?php echo $this->translate("touristattraction_booking_label"); ?>:</label>
+                    <?php echo isEmptyString($line['Booking']) ? '--' : nl2br($line['Booking']); ?><br><br>
+                    <label class="publabel"><?php echo $this->translate("touristattraction_otherservices_label"); ?>:</label>
+                    <?php echo isEmptyString($line['Other Services']) ? '--' : nl2br($line['Other Services']); ?><br><br>
+                    <label class="publabel"><?php echo $this->translate("touristattraction_tour_packages_label"); ?>:</label>
+                    <?php echo isEmptyString($line['Tour Packages']) ? '--' : nl2br($line['Tour Packages']); ?><br><br>
+                    </div>
+                    </td>
+                    <?php 
+						// do not close for the first row 	
+						if ($count % 2 == 1) {
+							echo "</tr>";
+						}		
+						// increment the counter
+						$count++; 
+                    } // end processing results 
+                    // if the last record is odd then add a blank row
+                    // and close the row 
+                    if ($count % 2 == 1) {
+                        echo "<td></td></tr>";
+                    }	
+                ?>  
+        	</table>
+        <div class="paginationlinks"><?php echo $paginate->getPaginationLinks(); ?></div>
+        <?php } ?>
+    </div>
+    </form>     
+</div>
+<?php
+	$clearsessionformvalues = true; 
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>

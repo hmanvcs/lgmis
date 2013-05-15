@@ -1,0 +1,40 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	$districtlist = new LookupType(); 
+	$districtlist->setName("AVAILABLE_LGMIS_DISTRICTS");
+	$result	= $districtlist->getOptionValuesFromQuery();
+	// debugMessage($result);
+	$links = array('<li><a id="home" href="'.$this->baseUrl('lgmis').'">Overview</a></li>'); 
+	foreach ($result as $key => $line) {
+		$activeclass = '';
+		if($request->id == $line['id']){
+			$activeclass = 'class="active"';
+		}
+		$links[] = '<li '.$activeclass.' id="'.$line['id'].'"><a href="'.$this->baseUrl('lgmis/district/id/'.$key).'">'.$line.'</a></li>'; 
+	}
+	
+	$id = $request->id;
+	$current = "home"; 
+	$showsubmenu = false;
+	if (!isEmptyString($id)) {
+		$current = $id; 
+		$showsubmenu = true;
+	}
+?>
+<style>
+ul#mainmenu, div.pageinfo {
+	display:none;
+}
+</style>
+    <ul id="lgmissubmenu">
+        <li class=""><a href="<?php echo $this->baseUrl('lgmis/index/'); ?>">Home</a></li>
+        <li class="<?php echo $request->getActionName() == "businesssector" ? "active" : ""; ?><?php echo $showsubmenu == true ? ' visiblemenu': ' invisiblemenu'; ?>"><a href="<?php echo $this->baseUrl('lgmis/businesssector/id/'.$id); ?>">Business Sector</a></li>            
+        <li class="<?php echo $request->getActionName() == "cropproduction" ? "active" : ""; ?><?php echo $showsubmenu == true ? ' visiblemenu': ' invisiblemenu'; ?>"><a href="<?php echo $this->baseUrl('lgmis/cropproduction/id/'.$id); ?>">Crop Production</a></li>
+        <li class="<?php echo $request->getActionName() == "inputproduction" ? "active" : ""; ?><?php echo $showsubmenu == true ? ' visiblemenu': ' invisiblemenu'; ?>"><a href="<?php echo $this->baseUrl('lgmis/inputproduction/id/'.$id); ?>">Agricultural Inputs</a></li>
+        <li class="<?php echo $request->getActionName() == "livestockproduction" ? "active" : ""; ?><?php echo $showsubmenu == true ? ' visiblemenu': ' invisiblemenu'; ?>"><a href="<?php echo $this->baseUrl('lgmis/livestockproduction/id/'.$id); ?>">Livestock</a></li>
+        <li class="<?php echo $request->getActionName() == "handcraftsector" ? "active" : ""; ?><?php echo $showsubmenu == true ? ' visiblemenu': ' invisiblemenu'; ?>"><a href="<?php echo $this->baseUrl('lgmis/handcraftsector/id/'.$id); ?>">Handcrafts</a></li>
+        <li class="<?php echo $request->getActionName() == "touristattraction" ? "active" : ""; ?><?php echo $showsubmenu == true ? ' visiblemenu': ' invisiblemenu'; ?>"><a href="<?php echo $this->baseUrl('lgmis/touristattraction/id/'.$id); ?>">Tourism</a></li>
+        <li class="<?php echo $request->getActionName() == "fishproduction" ? "active" : ""; ?><?php echo $showsubmenu == true ? ' visiblemenu': ' invisiblemenu'; ?>"><a href="<?php echo $this->baseUrl('lgmis/fishproduction/id/'.$id); ?>">Fishing</a></li>
+    </ul>
+    

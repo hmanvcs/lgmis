@@ -1,0 +1,63 @@
+<?php 
+
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	$waterbody = new WaterBody();
+	
+	// default title is to enable adding any landingsite
+	$title = "View Water Body"; 
+	$waterbody->populate(decode($request->id));
+		
+	$this->headTitle($title);  
+?>
+<script>
+	$(document).ready(function() {		
+		$("table.formtable .delete").click(function(){
+			if(window.confirm("Are you sure you want to Delete? \n Click OK to confirm or Cancel to stay on this page.")){
+				return true;
+			} else {
+				return false;
+			}
+		}); 		
+	}); 
+</script>
+<div class="pageinfo"><?php echo /*$this->translate("waterbody_page_info")*/"Details of a water body"; ?></div>
+<?php if(isNotAnEmptyString($session->getVar(SUCCESS_MESSAGE))){ ?>
+<div class="successmessage"><?php echo $session->getVar(SUCCESS_MESSAGE); ?></div>
+<?php } ?>
+<table class="formtable">
+  <tr class="sectionheading">
+    <td colspan="2"><?php echo $title; ?></td>
+  </tr>  
+  <tr>
+    <td class="label"><?php echo /*$this->translate("landingsite_name_label")*/"Name of Water Body"; ?>:</td>
+    <td><?php echo $waterbody->getName(); ?></td>
+  </tr>
+  <tr>
+    <td class="label"><?php echo /*$this->translate("landingsite_description_label")*/"Description"; ?>:</td>
+    <td><?php echo $waterbody->getDescription(); ?></td>
+  </tr>
+</table>
+<br />
+<table class="formtable">
+  <tfoot>
+    <tr>
+      <td>	  	
+        <?php if ($acl->checkPermission('Water Body', ACTION_DELETE) || isLGMISAdmin()) { ?>
+        <a href="<?php echo $this->baseUrl('waterbody/delete/entityname/WaterBody/id/'.encode($waterbody->getID()).'/'.SUCCESS_MESSAGE.'/Water Body has been successfully deleted/'.URL_SUCCESS.'/'.encode($this->baseUrl("waterbody/list"))); ?>" class="negativeaction delete" title="<?php echo $this->translate("global_button_delete"); ?>"><img src="<?php echo $this->baseUrl('images/cross.png'); ?>" /><?php echo $this->translate("global_button_delete"); ?></a>
+        <?php } ?>
+        <?php if ($acl->checkPermission('Water Body', ACTION_EDIT) || isLGMISAdmin()) { ?>        
+        <a href="<?php echo $this->baseUrl('waterbody/index/id/'.encode($waterbody->getID())); ?>" class="positiveaction" title="<?php echo $this->translate("global_button_edit"); ?>"><img src="<?php echo $this->baseUrl('images/edit.png'); ?>" /><?php echo $this->translate("global_button_edit"); ?></a>
+        <?php } ?>
+        <?php if ($acl->checkPermission('Water Body', ACTION_LIST) || isLGMISAdmin()) { ?>
+        <a href="<?php echo $this->baseUrl('waterbody/list'); ?>" class="positiveaction" title="<?php echo /*$this->translate("landingsite_button_list")*/"All Water Bodies"; ?>"><img src="<?php echo $this->baseUrl('images/arrow_undo.png'); ?>" /><?php echo /*$this->translate("landingsite_button_list")*/"All Water Bodies"; ?></a>
+        <?php } ?>
+      </td>
+    </tr>
+  </tfoot>
+</table>
+<?php 
+
+	require_once APPLICATION_PATH.'/includes/footer.php';
+
+?>

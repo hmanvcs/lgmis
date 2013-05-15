@@ -1,0 +1,169 @@
+<?php
+	require_once APPLICATION_PATH.'/includes/header.php';
+	
+	# Page title
+	$title = $this->translate("boat_pagetitle_list");
+	$this->headTitle($title);
+	
+	if(!isLGMISAdmin()) {
+		$request->setParam('ld'.HTML_TABLE_COLUMN_SEPARATOR.'districtid', $session->getVar('districtid')); 
+		$district = new District();
+		$district->populate($session->getVar('districtid'));
+		$subtitle = $district->getName()." Boats";
+	}
+	
+	$can_view_all = false;
+	$districtquery = '';
+	if (isLGMISAdmin()) { 
+		$can_view_all = true;
+	} 
+	
+	# Create an instance of the class to handle the pagination
+	$paginate = new Pagination();	
+	$paginate->setView($this);
+	# set the search columns to be used on this list
+	$paginate->setSearchColumns(array("b.name", "b.owner","ld.name","b.regno","l.name"));
+	$paginate->setFilterColumns(array("b.landingsiteid","b.type","ld.districtid"));
+	$paginate->setDefaultSortBy("b.name");	
+
+	$paginate->processPost($request->getParams());
+	$all_results_query = "SELECT b.id, b.`name` AS `Name`, b.`regno` AS `Registration Number`, b.description AS `Description`, b.`owner` AS `Owner`, b.`type` AS `Type`, ld.name AS `Landing Site`, ld.districtid as `districtid`, l.name as `District` FROM boat AS b inner join landingsite as ld on (b.landingsiteid = ld.id) inner join location as l on (ld.districtid = l.id) WHERE b.name <> '' ".$paginate->getSearchAndFilterSQL()." GROUP BY b.id ".$paginate->getSortSQL();
+	
+	// debugMessage($all_results_query);
+	$paginate->setItemCountFromSQLQuery($all_results_query);
+	
+	$current_results_query = $all_results_query." ".$paginate->getSQLLimit();
+	//echo $current_results_query;
+	$session->setVar(ALL_RESULTS_QUERY, $all_results_query);
+	$session->setVar(CURRENT_RESULTS_QUERY, $current_results_query);
+	# the query string to be appended to the return to list URL
+	$session->setVar('list_query_string'.$request->getControllerName(), $request->getParams());
+	
+	$conn = Doctrine_Manager::connection(); 
+	$result = $conn->fetchAll($current_results_query);
+	$has_no_data = (count($result) == 0) ? true : false; 
+	
+?>
+
+<form action="<?php echo $this->baseUrl("boat/listsearch"); ?>" method="get" id="usersform">
+  <table class="filtercontainer">
+    <tr>
+      <td><table class="filtersection">
+	      	 <tr>
+	            <td>
+                <?php if($can_view_all) { ?>
+					<?php
+                        $districtlist = new LookupType(); 
+                        $districtlist->setName("AVAILABLE_LGMIS_DISTRICTS");
+                        $districtdropdown = new Zend_Form_Element_Select('ld'.HTML_TABLE_COLUMN_SEPARATOR.'districtid',
+                                            array(
+                                                'multiOptions' => array_merge_maintain_keys(array('' => 'All Districts'), $districtlist->getOptionValuesFromQuery()),								'view' => new Zend_View(),
+                                                'decorators' => array('ViewHelper'),
+                                                'class' => array('filterselect', 'chzn-select')
+                                            )
+                                        );
+                        $districtdropdown->setValue($request->getParam('ld'.HTML_TABLE_COLUMN_SEPARATOR.'districtid')); 
+                        echo $districtdropdown->render(); 
+                      ?>
+                <?php } ?>&nbsp;&nbsp;
+                <?php
+					$landingsitelist = new LookupType(); 
+					$landingsitelist->setName("ALL_LANDING_SITES");
+					$sites = ($can_view_all == true) ? getAllLandingSites() : getLandingSitesForLocation($session->getVar('districtid'));
+					$landingsitedropdown = new Zend_Form_Element_Select('b'.HTML_TABLE_COLUMN_SEPARATOR.'landingsiteid',
+										array(
+											'multiOptions' => array_merge_maintain_keys(array('' => 'All Landing Sites'), $sites),								
+											'view' => new Zend_View(),
+											'decorators' => array('ViewHelper'),
+											'class' => array('filterselect', 'chzn-select')
+										)
+									);
+					$landingsitedropdown->setValue($request->getParam('b'.HTML_TABLE_COLUMN_SEPARATOR.'landingsiteid')); 
+					echo $landingsitedropdown->render(); 
+				?>&nbsp;&nbsp;
+				<?php
+                    $typelist = new LookupType(); 
+					$typelist->setName("BOAT_TYPES"); 
+                    $typedropdown = new Zend_Form_Element_Select('b'.HTML_TABLE_COLUMN_SEPARATOR.'type',
+                                        array(
+                                            'multiOptions' => array_merge_maintain_keys(array('' => 'All Boat Types'), $typelist->getOptionValuesAndDescription()),								'view' => new Zend_View(),
+                                            'decorators' => array('ViewHelper'),
+                                            'class' => array('filterselect', 'chzn-select')
+                                        )
+                                    );
+                    $typedropdown->setValue($request->getParam('b'.HTML_TABLE_COLUMN_SEPARATOR.'type')); 
+                    echo $typedropdown->render(); 
+                  ?>
+	              &nbsp;&nbsp;</td>
+	            <td></td>
+	          </tr>
+          </table>
+      </td>
+      <td><table>
+          <tr>
+            <td><input class="filterselect" type="text" name="searchterm" id="searchterm" value="<?php echo $request->searchterm; ?>" title="Enter your search term here and click search" /></td>
+          </tr>
+          <tr>
+            <td><button type="submit" class="positiveaction" id="searchbutton" title="Click here to Search or Filter"><img src="<?php echo $this->baseUrl("images/zoom_in.png"); ?>" alt="Search"/>Search</button></td>
+          </tr>
+        </table></td>
+    </tr>
+  </table>
+  <?php if(isNotAnEmptyString($session->getVar(SUCCESS_MESSAGE))){ ?>
+  <div class="successmessage"><?php echo $session->getVar(SUCCESS_MESSAGE); ?></div>
+  <?php } ?>
+  <?php // show a message that there are no items to display
+	if ($has_no_data) {
+?>
+  <label class="error"><?php echo $this->translate("boat_list_norecords"); ?></label>
+  <?php } else { ?>
+  <div id="counter"><?php echo sprintf($this->translate("boat_list_counter"), $paginate->getItemCounterText()); ?></div>
+  <div id="listcounter"><?php echo $this->listcountdropdown; ?></div>
+  <div id="listresults_div">
+    <h2><?php echo $title; ?></h2>
+    <table class="list">
+      <thead>
+        <tr>
+          <?php if ($acl->checkPermission('Boat', ACTION_EDIT)) {?>
+          <td width="40">Edit</td>
+          <?php } ?>
+          <td><?php echo $paginate->getSortLinkForColumn('b.`name`','Name'); ?></td>
+          <td width="140"><?php echo $paginate->getSortLinkForColumn('b.`owner`','Owner'); ?></td>
+          <td width="80"><?php echo $paginate->getSortLinkForColumn('b.`regno`','Reg No.'); ?></td>
+          <td width="80"><?php echo $paginate->getSortLinkForColumn('b.`type`','Type'); ?></td>
+          <?php if($can_view_all){ ?>
+          	<td width="90"><?php echo $paginate->getSortLinkForColumn('l.name','District'); ?></td>
+          <?php } ?>
+          <td width="100"><?php echo $paginate->getSortLinkForColumn('ld.name','Landing Site'); ?></td>
+        </tr>
+      </thead>
+      <tbody>
+        <?php 				  		
+			foreach($result as $line){							
+		?>
+       <tr>
+          <?php if ($acl->checkPermission('Boat', ACTION_EDIT)) {?>
+          <td class="nowrapping"><a href="<?php echo $this->baseUrl("boat/index/id/".encode($line['id'])); ?>"><img src="<?php echo $this->baseUrl('images/edit.png'); ?>"/></a></td>
+          <?php } ?>
+          <td class="nowrapping"><a href="<?php echo $this->baseUrl("boat/view/id/".encode($line['id'])); ?>"><?php echo $line['Name']; ?></a></td>
+          <td><?php echo $line['Owner']; ?></td>
+          <td><?php echo $line['Registration Number']; ?></td>
+          <td><?php echo $line['Type']; ?></td>
+          <?php if($can_view_all){ ?>
+          	<td><?php echo $line['District']; ?></td>
+          <?php } ?>
+          <td><?php echo $line['Landing Site']; ?></td>
+        </tr>
+        <?php } ?>
+      </tbody>
+        </tr>
+      
+    </table>
+  </div>
+  <?php	} ?>
+  <div class="paginationlinks"><?php echo $paginate->getPaginationLinks(); ?></div>
+</form>
+<?php
+	$session->setVar(SUCCESS_MESSAGE, "");
+	require_once APPLICATION_PATH.'/includes/footer.php';
+?>
